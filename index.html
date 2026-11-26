@@ -16,7 +16,7 @@
    PICTURE: Karte mit Route, Zeitmarke und EnBW-Säulen
    COLOUR and TYPE: weiß / Nachtblau, Signalblau, Orange nur für die Zeitmarke; Inter
    LAYOUT: eine Spalte, Eingabe oben, Karte, dann Säulen in Fahrtreihenfolge */
-:root{color-scheme:light dark;--bg:light-dark(#f4f6f8,#0b141c);--card:light-dark(#fff,#13202b);--ink:light-dark(#0e1a24,#e8eef3);--mute:light-dark(#5b6b78,#93a4b3);--line:light-dark(#dfe5ea,#22323f);--acc:#1f6feb;--hot:#f2711c;--ok:#1a9e5c}
+:root{color-scheme:light dark;--bg:light-dark(#f4f6f8,#0b141c);--card:light-dark(#fff,#13202b);--ink:light-dark(#0e1a24,#e8eef3);--mute:light-dark(#5b6b78,#93a4b3);--line:light-dark(#dfe5ea,#22323f);--acc:#1f6feb;--hot:#f2711c;--ok:#1a9e5c;--sel:#7c3aed}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
@@ -43,7 +43,24 @@ input[type=range]{width:100%;accent-color:var(--hot);height:36px}
 .go:disabled{opacity:.6}
 .msg{font-size:14px;color:var(--mute);margin:8px 0 0}
 .msg.err{color:#d0342c}
-#map{height:280px;border-radius:14px;border:1px solid var(--line);margin-bottom:12px;display:none;z-index:0}
+
+.mapwrap{position:relative;margin-bottom:12px;display:none}
+#map{height:300px;border-radius:14px;border:1px solid var(--line);z-index:0}
+.mapbtn{position:absolute;top:10px;right:10px;z-index:500;font:inherit;font-size:14px;font-weight:600;padding:9px 13px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:0 1px 4px #0003;cursor:pointer}
+.mapwrap.full{position:fixed;inset:0;z-index:1000;margin:0;background:var(--bg);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.mapwrap.full #map{height:100%;border-radius:0;border:0}
+.mapwrap.full .mapbtn{top:calc(10px + env(safe-area-inset-top))}
+.mapbar{display:none;position:absolute;left:10px;right:10px;bottom:calc(28px + env(safe-area-inset-bottom));z-index:500;background:var(--card);border:2px solid var(--sel);border-radius:14px;padding:10px 12px;box-shadow:0 2px 10px #0004}
+.mapwrap.full .mapbar.on{display:block}
+.mapbar b{display:block;font-size:15px}.mapbar span{font-size:13px;color:var(--mute)}
+.mapbar .btns{margin-top:8px}
+body.lock{overflow:hidden}
+.st{cursor:pointer}
+.st.sel{border-color:var(--sel);box-shadow:0 0 0 2px var(--sel)}
+.st.sel .tag.s{color:var(--sel)}
+.pin.sel{width:24px;height:24px;background:var(--sel);border-width:3px}
+.allrow{all:unset;display:block;width:100%;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--line)}
+.allrow.sel{color:var(--sel);font-weight:600}
 .sum{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--mute);margin:4px 2px 10px;flex-wrap:wrap}
 .st{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
 .st.best{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot)}
@@ -134,7 +151,7 @@ summary{cursor:pointer;min-height:32px}
   <p class="msg" id="msg" role="status"></p>
 </form>
 
-<div id="map"></div>
+<div class="mapwrap" id="mapwrap"><div id="map"></div><button type="button" class="mapbtn" id="mapbtn">Vergrößern</button><div class="mapbar" id="mapbar"></div></div>
 <div id="out"></div>
 
 <p class="foot" id="foot"></p>
@@ -284,7 +301,7 @@ const pts=s=>s[8].reduce((a,p)=>a+p[1],0);
 function gLink(c){const R=route,p=new URLSearchParams({api:'1',travelmode:'driving',destination:R.to.lat+','+R.to.lon,waypoints:c.s[1]+','+c.s[2]});
   if(!S.useHere)p.set('origin',R.from[0]+','+R.from[1]);return 'https://www.google.com/maps/dir/?'+p}
 const wLink=c=>`https://waze.com/ul?ll=${c.s[1]},${c.s[2]}&navigate=yes`;
-let renderSeq=0;
+let renderSeq=0,sel=null,allOpen=false;
 function render(){
   if(!route)return;const my=++renderSeq,R=route,tgt=S.t*60,w=S.win*60;
   const all=route.cands.filter(c=>c.s[3]>=S.kw&&(S.net==='group'||c.s[7])&&c.off<=S.cor*1000);
@@ -305,14 +322,16 @@ function render(){
   $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} EnBW-Säulen an der Strecke</span></div>`+
    (late?`<div class="card">Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit für den Ladestopp.</div>`:
     (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
-   (all.length&&!late?`<details><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<div>${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</div>`).join('')}</details>`:'');
+   (all.length&&!late?`<details id="all"${allOpen?' open':''}><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<button type="button" class="allrow${c.s[0]===sel?' sel':''}" data-id="${c.s[0]}">${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</button>`).join('')}</details>`:'');
+  const d=$('all');if(d)d.addEventListener('toggle',()=>{allOpen=d.open});
   drawMap(all,hits,tgt);
   fillDetours(hits.filter(c=>R.detours[c.s[0]]===undefined).slice(0,8),my);
 }
 function score(c,tgt){return Math.abs(c.eta-tgt)/60*0.5+(c.dt??30)/60+(c.eats&&!c.eats.some(p=>p.open)?3:0)}
 function card(c,best){
   const s=c.s,dt=c.dt;
-  return `<article class="st${best?' best':''}">${best?'<span class="tag">Beste Wahl</span>':''}
+  const on=s[0]===sel;
+  return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}">${on?'<span class="tag s">Auf der Karte</span> ':''}${best?'<span class="tag">Beste Wahl</span>':''}
   <h3>${esc(s[5]||s[4].split(',')[0])}</h3><div class="ad">${esc(s[4])}${s[7]?'':' · '+esc(s[6])}</div>
   <div class="facts"><div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>
   <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
@@ -331,17 +350,37 @@ async function fillDetours(list,my){
 }
 let softT;function softUpdate(){clearTimeout(softT);softT=setTimeout(()=>{const y=scrollY;render();scrollTo(0,y)},120)}
 function drawMap(all,hits,tgt){
-  const el=$('map');el.style.display='block';
+  $('mapwrap').style.display='block';const el=$('map');
   if(!window.L){el.textContent='Karte konnte nicht geladen werden.';return}
-  if(!map){map=L.map(el,{zoomControl:false,attributionControl:true});L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map)}
+  if(!map){map=L.map(el,{zoomControl:false,attributionControl:true});L.control.zoom({position:'topleft'}).addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map)}
   if(layer)layer.remove();layer=L.layerGroup().addTo(map);
   const line=L.polyline(route.co.map(c=>[c[1],c[0]]),{color:'#1f6feb',weight:5,opacity:.8}).addTo(layer);
-  const hitSet=new Set(hits);
-  all.forEach(c=>L.marker([c.s[1],c.s[2]],{icon:L.divIcon({className:'',html:`<div class="pin${hitSet.has(c)?' in':''}"></div>`,iconSize:[14,14]})}).bindPopup(esc((c.s[5]||c.s[4])+' · '+c.s[3]+' kW · '+fmtT(c.eta))).addTo(layer));
-  hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>L.marker([p.lat,p.lon],{icon:L.divIcon({className:'',html:'<div class="dot"></div>',iconSize:[10,10]})}).bindPopup(esc(p.name)).addTo(layer)));
+  const hitSet=new Set(hits);let selC=null;
+  all.forEach(c=>{const on=c.s[0]===sel;if(on)selC=c;
+    L.marker([c.s[1],c.s[2]],{zIndexOffset:on?1000:hitSet.has(c)?100:0,icon:L.divIcon({className:'',html:`<div class="pin${on?' sel':hitSet.has(c)?' in':''}"></div>`,iconSize:on?[24,24]:[14,14]})})
+     .on('click',()=>select(c.s[0],false)).addTo(layer)});
+  const shown=new Map();
+  hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>shown.set(p.name+p.lat,p)));
+  if(selC)(selC.eats||eatsAny(selC)).forEach(p=>shown.set(p.name+p.lat,p));
+  shown.forEach(p=>L.marker([p.lat,p.lon],{icon:L.divIcon({className:'',html:'<div class="dot"></div>',iconSize:[10,10]})}).bindPopup(esc(p.name+(p.t?.cuisine?' · '+foodLabel(p):''))).addTo(layer));
   if(tgt<route.dur){const p=pointAt(route,tgt);L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup('nach '+S.t+' min').addTo(layer)}
-  if(!map._fitted||map._fitted!==route){map.fitBounds(line.getBounds(),{padding:[20,20]});map._fitted=route}
+  if(sel&&!selC)sel=null;
+  const key=route.t0+':'+sel;
+  if(map._view!==key){map._view=key;if(selC)map.setView([selC.s[1],selC.s[2]],16);else map.fitBounds(line.getBounds(),{padding:[20,20]})}
+  const bar=$('mapbar');
+  if(selC){bar.className='mapbar on';bar.innerHTML=`<b>${esc(selC.s[5]||selC.s[4].split(',')[0])}</b><span>${esc(fmtT(selC.eta))} ab Start · ${selC.s[3]} kW · ${pts(selC.s)} Ladepunkte</span><div class="btns"><a class="gm" href="${esc(gLink(selC))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(selC))}" target="_blank" rel="noopener">Waze</a></div>`}
+  else{bar.className='mapbar';bar.innerHTML=''}
 }
+function eatsAny(c){const l=route.food?.[c.s[0]];return l?l.slice(0,6):[]}
+function select(id,scroll){
+  sel=sel===id&&scroll?null:id;render();
+  if(scroll&&sel&&!$('mapwrap').classList.contains('full'))$('mapwrap').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  if(!scroll&&sel){const a=document.querySelector(`.st[data-id="${sel}"]`);if(a&&!$('mapwrap').classList.contains('full'))a.scrollIntoView({block:'nearest'})}
+}
+$('out').addEventListener('click',e=>{if(e.target.closest('a'))return;const t=e.target.closest('[data-id]');if(t)select(+t.dataset.id,true)});
+function setBig(on){$('mapwrap').classList.toggle('full',on);document.body.classList.toggle('lock',on);$('mapbtn').textContent=on?'Schließen':'Vergrößern';if(map)setTimeout(()=>map.invalidateSize(),60)}
+$('mapbtn').addEventListener('click',()=>setBig(!$('mapwrap').classList.contains('full')));
+addEventListener('keydown',e=>{if(e.key==='Escape')setBig(false)});
 
 /* ---------- Ablauf ---------- */
 $('f').addEventListener('submit',async e=>{
@@ -353,8 +392,8 @@ $('f').addEventListener('submit',async e=>{
     else{if(!S.start){const q=$('start').value.trim();if(!q)throw new Error('Bitte eine Startadresse eingeben.');S.start=await firstHit(q);if(!S.start)throw new Error('Start nicht gefunden.')}from=[S.start.lat,S.start.lon]}
     save();msg('Berechne Route …');
     const rt=await osrm([from,[S.dest.lat,S.dest.lon]],true);
-    route=prepRoute(rt,from,S.dest);route.t0=Date.now();route.cands=along(route);
-    msg('');render();$('map').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    route=prepRoute(rt,from,S.dest);route.t0=Date.now();sel=null;route.cands=along(route);
+    msg('');render();$('mapwrap').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
   }catch(err){msg(err.message||'Fehler',true)}
   finally{btn.disabled=false}
 });
