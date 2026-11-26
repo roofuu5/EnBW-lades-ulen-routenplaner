@@ -249,7 +249,7 @@ function along(R){ /* jede Säule auf die Route projizieren */
 function pointAt(R,sec){const T=R.T;let i=0;while(i<T.length-1&&T[i+1]<sec)i++;return R.co[Math.min(i,R.co.length-1)]}
 
 /* ---------- Essen (OpenStreetMap / Overpass) ---------- */
-const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 const WALK_M=330; /* Luftlinie, entspricht etwa 5 min Fußweg */
 const FOOD={asia:{l:'Asiatisch',re:/asian|chinese|japanese|sushi|thai|vietnam|korean|ramen|noodle|indonesian|malaysian|taiwan|dim_sum|poke|wok|pho/},
  italia:{l:'Italienisch',re:/italian|pizza|pasta/},
@@ -257,7 +257,15 @@ const FOOD={asia:{l:'Asiatisch',re:/asian|chinese|japanese|sushi|thai|vietnam|ko
 function kinds(t){const c=(t.cuisine||'').toLowerCase(),n=((t.brand||'')+' '+(t.name||'')).toLowerCase(),k=[];
   for(const [id,f] of Object.entries(FOOD))if(f.re.test(c)||(f.brand&&f.brand.test(n))||(!c&&f.re.test(n)))k.push(id);return k}
 const hav=(a,b,c,d)=>{const r=Math.PI/180,x=(d-b)*r*Math.cos((a+c)/2*r),y=(c-a)*r;return 6371000*Math.hypot(x,y)};
-async function overpass(q){let last;for(const u of OVERPASS){try{const r=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});if(r.ok)return await r.json();last=new Error('Overpass '+r.status)}catch(e){last=e}}throw last}
+async function overpass(q){ /* Server gestaffelt anfragen, der erste mit Antwort gewinnt, nach 30 s Abbruch */
+  const ctl=OVERPASS.map(()=>new AbortController());let done=false;
+  const kill=setTimeout(()=>ctl.forEach(c=>c.abort()),30000);
+  const one=(u,i)=>new Promise((res,rej)=>setTimeout(()=>{if(done)return rej(new Error('skip'));
+    fetch(u+'?data='+encodeURIComponent(q),{signal:ctl[i].signal}).then(async r=>{if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(!Array.isArray(j.elements))throw new Error('Antwort ungültig');return j}).then(res,rej)},i*5000));
+  try{const j=await Promise.any(OVERPASS.map(one));done=true;ctl.forEach(c=>c.abort());return j}
+  catch(e){throw new Error('Restaurantsuche nicht erreichbar')}
+  finally{done=true;clearTimeout(kill)}
+}
 async function loadFood(list){
   const R=route;R.food=R.food||{};R.foodPend=R.foodPend||new Set();
   const todo=list.filter(c=>R.food[c.s[0]]===undefined&&!R.foodPend.has(c.s[0]));
@@ -308,12 +316,12 @@ function render(){
   let hits=all.filter(c=>Math.abs(c.eta-tgt)<=w);
   const late=tgt>R.dur;
   if(late)hits=[];
-  const foodOn=S.food.length>0;let foodNote='';
+  const foodOn=S.food.length>0;let foodNote='',foodRetry=false;
   if(foodOn&&hits.length){
     loadFood(hits);
     const pending=hits.filter(c=>R.food?.[c.s[0]]===undefined).length,failed=hits.every(c=>R.food?.[c.s[0]]===null);
-    if(failed){foodNote='Restaurantsuche gerade nicht erreichbar. Gezeigt werden alle Säulen ohne Essensfilter.';hits.forEach(c=>c.eats=[])}
-    else{hits.forEach(c=>c.eats=eats(c));const n=hits.length;hits=hits.filter(c=>c.eats.length);
+    if(failed){foodNote='Restaurantsuche gerade nicht erreichbar. Gezeigt werden alle Säulen ohne Essensfilter.';foodRetry=true;hits.forEach(c=>c.eats=[])}
+    else{foodRetry=hits.some(c=>R.food?.[c.s[0]]===null);hits.forEach(c=>c.eats=eats(c));const n=hits.length;hits=hits.filter(c=>c.eats.length);
       foodNote=pending?`Suche Restaurants an ${pending} Säulen …`:hits.length?'':`An keiner der ${n} Säulen im Zeitfenster gibt es passendes Essen in 5 min Fußweg. Zeitfenster vergrößern oder andere Küche wählen.`}
   }else hits.forEach(c=>c.eats=null);
   hits.forEach(c=>c.dt=R.detours[c.s[0]]);
@@ -321,7 +329,7 @@ function render(){
   const best=scored.length?scored.reduce((a,b)=>score(b,tgt)<score(a,tgt)?b:a):null;
   $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} EnBW-Säulen an der Strecke</span></div>`+
    (late?`<div class="card">Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit für den Ladestopp.</div>`:
-    (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
+    (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(foodRetry?`<button type="button" class="chip" id="foodRetry" style="margin:4px 0 12px">Restaurantsuche nochmal versuchen</button>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
    (all.length&&!late?`<details id="all"${allOpen?' open':''}><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<button type="button" class="allrow${c.s[0]===sel?' sel':''}" data-id="${c.s[0]}">${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</button>`).join('')}</details>`:'');
   const d=$('all');if(d)d.addEventListener('toggle',()=>{allOpen=d.open});
   drawMap(all,hits,tgt);
@@ -377,7 +385,7 @@ function select(id,scroll){
   if(scroll&&sel&&!$('mapwrap').classList.contains('full'))$('mapwrap').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
   if(!scroll&&sel){const a=document.querySelector(`.st[data-id="${sel}"]`);if(a&&!$('mapwrap').classList.contains('full'))a.scrollIntoView({block:'nearest'})}
 }
-$('out').addEventListener('click',e=>{if(e.target.closest('a'))return;const t=e.target.closest('[data-id]');if(t)select(+t.dataset.id,true)});
+$('out').addEventListener('click',e=>{if(e.target.closest('a'))return;if(e.target.closest('#foodRetry')){const F=route.food||{};for(const k in F)if(F[k]===null)delete F[k];route.foodPend=new Set();render();return}const t=e.target.closest('[data-id]');if(t)select(+t.dataset.id,true)});
 function setBig(on){$('mapwrap').classList.toggle('full',on);document.body.classList.toggle('lock',on);$('mapbtn').textContent=on?'Schließen':'Vergrößern';if(map)setTimeout(()=>map.invalidateSize(),60)}
 $('mapbtn').addEventListener('click',()=>setBig(!$('mapwrap').classList.contains('full')));
 addEventListener('keydown',e=>{if(e.key==='Escape')setBig(false)});
