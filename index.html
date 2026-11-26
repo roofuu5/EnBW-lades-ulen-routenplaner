@@ -60,6 +60,12 @@ input[type=range]{width:100%;accent-color:var(--hot);height:36px}
 .wz{border:1px solid var(--line);color:var(--ink)}
 details{margin-top:6px;font-size:14px;color:var(--mute)}
 summary{cursor:pointer;min-height:32px}
+.eat{list-style:none;margin:0 0 10px;padding:0;border-top:1px solid var(--line)}
+.eat li{padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;display:flex;justify-content:space-between;gap:10px}
+.eat a{color:var(--ink);font-weight:600;text-decoration:none}
+.eat span{color:var(--mute);text-align:right;white-space:nowrap}
+.eat .op{color:var(--ok)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--ok);border:2px solid #fff}
 .foot{font-size:12px;color:var(--mute);margin:18px 2px 30px}
 .leaflet-container{font:inherit}
 .pin{width:14px;height:14px;border-radius:50%;background:var(--acc);border:2px solid #fff;box-shadow:0 1px 3px #0006}
@@ -104,6 +110,14 @@ summary{cursor:pointer;min-height:32px}
     <button type="button" class="chip" data-v="group" aria-pressed="false">+ EnBW-Töchter</button>
   </div>
 
+  <label class="l">Essen beim Laden (max. 5 min zu Fuß)</label>
+  <div class="row" id="food" role="group" aria-label="Essen">
+    <button type="button" class="chip" data-v="asia" aria-pressed="false">Asiatisch</button>
+    <button type="button" class="chip" data-v="italia" aria-pressed="false">Italienisch</button>
+    <button type="button" class="chip" data-v="burger" aria-pressed="false">Burger</button>
+    <button type="button" class="chip" data-v="any" aria-pressed="false">Egal was</button>
+  </div>
+
   <label class="l">Zeitfenster und Abstand zur Strecke</label>
   <div class="row" id="win" role="group" aria-label="Zeitfenster">
     <button type="button" class="chip" data-v="10" aria-pressed="false">±10 min</button>
@@ -137,7 +151,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem('ls_'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('ls_'+k,JSON.stringify(v))}catch(e){}}};
 
-const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3},store.get('s',{}));
+const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[]},store.get('s',{}));
 S.start=S.useHere?null:S.start;
 let route=null,map=null,layer=null,here=null;
 
@@ -150,6 +164,11 @@ function chips(id,key,num=true){
 }
 chips('kw','kw');chips('net','net',false);chips('win','win');chips('cor','cor');
 const save=()=>store.set('s',S);
+if(!Array.isArray(S.food))S.food=[];
+{const box=$('food');const sync=()=>box.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(S.food.includes(b.dataset.v))));
+ box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;const v=b.dataset.v;
+  if(S.food.includes(v))S.food=S.food.filter(x=>x!==v);else S.food=v==='any'?['any']:S.food.filter(x=>x!=='any').concat(v);
+  sync();save();if(route)render()});sync()}
 $('t').value=S.t;$('tv').textContent=S.t;
 $('t').addEventListener('input',e=>{S.t=+e.target.value;$('tv').textContent=S.t;save();if(route)render()});
 function setStartMode(hereMode){S.useHere=hereMode;$('startHere').setAttribute('aria-pressed',String(hereMode));$('startOther').setAttribute('aria-pressed',String(!hereMode));$('startBox').hidden=hereMode;save()}
@@ -212,6 +231,53 @@ function along(R){ /* jede Säule auf die Route projizieren */
 }
 function pointAt(R,sec){const T=R.T;let i=0;while(i<T.length-1&&T[i+1]<sec)i++;return R.co[Math.min(i,R.co.length-1)]}
 
+/* ---------- Essen (OpenStreetMap / Overpass) ---------- */
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+const WALK_M=330; /* Luftlinie, entspricht etwa 5 min Fußweg */
+const FOOD={asia:{l:'Asiatisch',re:/asian|chinese|japanese|sushi|thai|vietnam|korean|ramen|noodle|indonesian|malaysian|taiwan|dim_sum|poke|wok|pho/},
+ italia:{l:'Italienisch',re:/italian|pizza|pasta/},
+ burger:{l:'Burger',re:/burger/,brand:/mc ?donald|burger king|five guys|hans im gl|peter pane|burgerme|jim block/}};
+function kinds(t){const c=(t.cuisine||'').toLowerCase(),n=((t.brand||'')+' '+(t.name||'')).toLowerCase(),k=[];
+  for(const [id,f] of Object.entries(FOOD))if(f.re.test(c)||(f.brand&&f.brand.test(n))||(!c&&f.re.test(n)))k.push(id);return k}
+const hav=(a,b,c,d)=>{const r=Math.PI/180,x=(d-b)*r*Math.cos((a+c)/2*r),y=(c-a)*r;return 6371000*Math.hypot(x,y)};
+async function overpass(q){let last;for(const u of OVERPASS){try{const r=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'}});if(r.ok)return await r.json();last=new Error('Overpass '+r.status)}catch(e){last=e}}throw last}
+async function loadFood(list){
+  const R=route;R.food=R.food||{};R.foodPend=R.foodPend||new Set();
+  const todo=list.filter(c=>R.food[c.s[0]]===undefined&&!R.foodPend.has(c.s[0]));
+  for(let i=0;i<todo.length;i+=40){
+    const part=todo.slice(i,i+40);part.forEach(c=>R.foodPend.add(c.s[0]));
+    const q='[out:json][timeout:25];('+part.map(c=>`nwr(around:${WALK_M},${c.s[1]},${c.s[2]})[amenity~"^(restaurant|fast_food)$"][name];`).join('')+');out center tags;';
+    try{const j=await overpass(q);
+      for(const c of part)R.food[c.s[0]]=j.elements.map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon;return {name:e.tags.name,t:e.tags,lat:la,lon:lo,d:la==null?1e9:hav(c.s[1],c.s[2],la,lo),k:kinds(e.tags)}}).filter(x=>x.d<=WALK_M).sort((a,b)=>a.d-b.d);
+    }catch(e){part.forEach(c=>R.food[c.s[0]]=null)}
+    if(R!==route)return;softUpdate();
+  }
+}
+const DAYS=['Mo','Tu','We','Th','Fr','Sa','Su'];
+function isOpen(oh,date){ /* true, false oder null (unbekannt); nicht genannte Tage gelten als geschlossen */
+  if(!oh)return null;oh=oh.trim();if(oh==='24/7')return true;
+  const wd=(date.getDay()+6)%7,pd=(wd+6)%7,min=date.getHours()*60+date.getMinutes();let res=false,spill=false;
+  const on=(dp,d)=>!dp||dp.split(',').filter(Boolean).some(seg=>{const [a,b]=seg.split('-'),i=DAYS.indexOf(a),j=b?DAYS.indexOf(b):i;return i<=j?d>=i&&d<=j:d>=i||d<=j});
+  for(let rule of oh.split(';')){rule=rule.trim().replace(/,PH\b/g,'').replace(/^PH,/,'');if(!rule||/^(PH|SH)\b/.test(rule))continue;
+    const m=rule.match(/^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?,?)+)?\s*(.*)$/);
+    const dp=m[1]||'',tp=m[2].trim(),today=on(dp,wd),prev=on(dp,pd);
+    if(/^(off|closed)$/i.test(tp)){if(today)res=false;continue}
+    if(!tp){if(today)res=true;continue}
+    let open=false;
+    for(const span of tp.split(',')){const t=span.trim().match(/^(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})\+?$/);if(!t)return null;
+      const a=+t[1]*60+ +t[2];let b=+t[3]*60+ +t[4];if(b<=a)b+=1440;
+      if(today&&min>=a&&min<b)open=true;if(prev&&b>1440&&min<b-1440)spill=true}
+    if(today)res=open}
+  return res||spill;
+}
+function eats(c){
+  const list=route.food?.[c.s[0]];if(!list)return [];const arr=new Date(route.t0+c.eta*1000);
+  return list.filter(p=>S.food.includes('any')||p.k.some(k=>S.food.includes(k))).map(p=>Object.assign({},p,{open:isOpen(p.t.opening_hours,arr)}))
+    .filter(p=>p.open!==false).sort((a,b)=>(a.open?0:1)-(b.open?0:1)||a.d-b.d);
+}
+function gSearch(p,c){const st=[p.t['addr:street'],p.t['addr:housenumber']].filter(Boolean).join(' ');const city=p.t['addr:city']||(c.s[4].split(',')[1]||'').trim();return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.name,st,city].filter(Boolean).join(', '))}
+function foodLabel(p){const k=p.k.map(x=>FOOD[x].l);if(k.length)return k[0];const c=(p.t.cuisine||'').split(';')[0].replace(/_/g,' ');return c?c[0].toUpperCase()+c.slice(1):(p.t.amenity==='fast_food'?'Imbiss':'Restaurant')}
+
 /* ---------- Anzeige ---------- */
 const fmtT=s=>{const m=Math.round(s/60);return m<60?m+' min':Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')};
 const pts=s=>s[8].reduce((a,p)=>a+p[1],0);
@@ -225,17 +291,25 @@ function render(){
   let hits=all.filter(c=>Math.abs(c.eta-tgt)<=w);
   const late=tgt>R.dur;
   if(late)hits=[];
+  const foodOn=S.food.length>0;let foodNote='';
+  if(foodOn&&hits.length){
+    loadFood(hits);
+    const pending=hits.filter(c=>R.food?.[c.s[0]]===undefined).length,failed=hits.every(c=>R.food?.[c.s[0]]===null);
+    if(failed){foodNote='Restaurantsuche gerade nicht erreichbar. Gezeigt werden alle Säulen ohne Essensfilter.';hits.forEach(c=>c.eats=[])}
+    else{hits.forEach(c=>c.eats=eats(c));const n=hits.length;hits=hits.filter(c=>c.eats.length);
+      foodNote=pending?`Suche Restaurants an ${pending} Säulen …`:hits.length?'':`An keiner der ${n} Säulen im Zeitfenster gibt es passendes Essen in 5 min Fußweg. Zeitfenster vergrößern oder andere Küche wählen.`}
+  }else hits.forEach(c=>c.eats=null);
   hits.forEach(c=>c.dt=R.detours[c.s[0]]);
   const scored=hits.filter(c=>c.dt!=null);
   const best=scored.length?scored.reduce((a,b)=>score(b,tgt)<score(a,tgt)?b:a):null;
   $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} EnBW-Säulen an der Strecke</span></div>`+
    (late?`<div class="card">Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit für den Ladestopp.</div>`:
-    hits.length?hits.map(c=>card(c,c===best)).join(''):`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`)+
+    (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
    (all.length&&!late?`<details><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<div>${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</div>`).join('')}</details>`:'');
   drawMap(all,hits,tgt);
   fillDetours(hits.filter(c=>R.detours[c.s[0]]===undefined).slice(0,8),my);
 }
-function score(c,tgt){return Math.abs(c.eta-tgt)/60*0.5+(c.dt??30)/60}
+function score(c,tgt){return Math.abs(c.eta-tgt)/60*0.5+(c.dt??30)/60+(c.eats&&!c.eats.some(p=>p.open)?3:0)}
 function card(c,best){
   const s=c.s,dt=c.dt;
   return `<article class="st${best?' best':''}">${best?'<span class="tag">Beste Wahl</span>':''}
@@ -243,6 +317,7 @@ function card(c,best){
   <div class="facts"><div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>
   <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
   <div><b>${dt===undefined?'…':dt===null?'–':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div></div>
+  ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,3).map(p=>`<li><a href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">${esc(p.name)}</a><span>${esc(foodLabel(p))} · ${Math.max(1,Math.round(p.d*1.3/80))} min · <b class="${p.open?'op':''}">${p.open?'offen':'Zeiten ?'}</b></span></li>`).join('')}${c.eats.length>3?`<li><span>+${c.eats.length-3} weitere</span></li>`:''}</ul>`:''}
   <div class="btns"><a class="gm" href="${esc(gLink(c))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(c))}" target="_blank" rel="noopener">Waze</a></div></article>`;
 }
 async function fillDetours(list,my){
@@ -263,6 +338,7 @@ function drawMap(all,hits,tgt){
   const line=L.polyline(route.co.map(c=>[c[1],c[0]]),{color:'#1f6feb',weight:5,opacity:.8}).addTo(layer);
   const hitSet=new Set(hits);
   all.forEach(c=>L.marker([c.s[1],c.s[2]],{icon:L.divIcon({className:'',html:`<div class="pin${hitSet.has(c)?' in':''}"></div>`,iconSize:[14,14]})}).bindPopup(esc((c.s[5]||c.s[4])+' · '+c.s[3]+' kW · '+fmtT(c.eta))).addTo(layer));
+  hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>L.marker([p.lat,p.lon],{icon:L.divIcon({className:'',html:'<div class="dot"></div>',iconSize:[10,10]})}).bindPopup(esc(p.name)).addTo(layer)));
   if(tgt<route.dur){const p=pointAt(route,tgt);L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup('nach '+S.t+' min').addTo(layer)}
   if(!map._fitted||map._fitted!==route){map.fitBounds(line.getBounds(),{padding:[20,20]});map._fitted=route}
 }
@@ -277,13 +353,13 @@ $('f').addEventListener('submit',async e=>{
     else{if(!S.start){const q=$('start').value.trim();if(!q)throw new Error('Bitte eine Startadresse eingeben.');S.start=await firstHit(q);if(!S.start)throw new Error('Start nicht gefunden.')}from=[S.start.lat,S.start.lon]}
     save();msg('Berechne Route …');
     const rt=await osrm([from,[S.dest.lat,S.dest.lon]],true);
-    route=prepRoute(rt,from,S.dest);route.cands=along(route);
+    route=prepRoute(rt,from,S.dest);route.t0=Date.now();route.cands=along(route);
     msg('');render();$('map').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
   }catch(err){msg(err.message||'Fehler',true)}
   finally{btn.disabled=false}
 });
 const g=new Date(STATIONS_META.generatedAt);
-$('foot').textContent=`${STATIONS.filter(s=>s[7]).length} EnBW-Säulen und ${STATIONS.filter(s=>!s[7]).length} Säulen von EnBW-Töchtern (SMATRICS, naturenergie, PRE), alle ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Keine Roaming-Partner. Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr; die Navigation selbst läuft mit Verkehr in Google Maps. Karte und Adresssuche © OpenStreetMap-Mitwirkende.`;
+$('foot').textContent=`${STATIONS.filter(s=>s[7]).length} EnBW-Säulen und ${STATIONS.filter(s=>!s[7]).length} Säulen von EnBW-Töchtern (SMATRICS, naturenergie, PRE), alle ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Keine Roaming-Partner. Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr; die Navigation selbst läuft mit Verkehr in Google Maps. Karte, Adresssuche und Restaurants © OpenStreetMap-Mitwirkende. Öffnungszeiten laut OpenStreetMap, ohne Gewähr.`;
 window.__app={S,along,prepRoute,render,get route(){return route},set route(v){route=v}};
 }
 </script>
