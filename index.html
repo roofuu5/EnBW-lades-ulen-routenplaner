@@ -78,11 +78,19 @@ body.lock{overflow:hidden}
 details{margin-top:6px;font-size:14px;color:var(--mute)}
 summary{cursor:pointer;min-height:32px}
 .eat{list-style:none;margin:0 0 10px;padding:0;border-top:1px solid var(--line)}
-.eat li{padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;display:flex;justify-content:space-between;gap:10px}
-.eat a{color:var(--ink);font-weight:600;text-decoration:none}
+.eat li{border-bottom:1px solid var(--line);font-size:14px}
+.eat a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;min-height:44px;color:var(--ink);text-decoration:none}
+.eat a strong{font-weight:600}
+.eat a strong::after{content:" ›";color:var(--acc)}
 .eat span{color:var(--mute);text-align:right;white-space:nowrap}
+.eat li.more{padding:8px 0;color:var(--mute)}
 .eat .op{color:var(--ok)}
-.dot{width:10px;height:10px;border-radius:50%;background:var(--ok);border:2px solid #fff}
+.dotw{width:26px;height:26px;display:grid;place-items:center;cursor:pointer}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--ok);border:2px solid #fff;box-shadow:0 1px 3px #0006}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--ink)}
+.leaflet-popup-content{margin:12px 14px;font-size:14px;line-height:1.4}
+.pop b{display:block;font-size:15px}.pop span{display:block;color:var(--mute)}.pop .op{display:inline;color:var(--ok);font-size:inherit}
+.pop a{display:block;margin-top:8px;padding:9px 12px;border-radius:9px;background:var(--acc);color:#fff!important;text-align:center;font-weight:600;text-decoration:none}
 .foot{font-size:12px;color:var(--mute);margin:18px 2px 30px}
 .leaflet-container{font:inherit}
 .pin{width:14px;height:14px;border-radius:50%;background:var(--acc);border:2px solid #fff;box-shadow:0 1px 3px #0006}
@@ -300,6 +308,8 @@ function eats(c){
   return list.filter(p=>S.food.includes('any')||p.k.some(k=>S.food.includes(k))).map(p=>Object.assign({},p,{open:isOpen(p.t.opening_hours,arr)}))
     .filter(p=>p.open!==false).sort((a,b)=>(a.open?0:1)-(b.open?0:1)||a.d-b.d);
 }
+const walk=p=>Math.max(1,Math.round(p.d*1.3/80));
+function eatInfo(p){return `${esc(foodLabel(p))} · ${walk(p)} min · <b class="${p.open?'op':''}">${p.open?'offen':'Zeiten ?'}</b>`}
 function gSearch(p,c){const st=[p.t['addr:street'],p.t['addr:housenumber']].filter(Boolean).join(' ');const city=p.t['addr:city']||(c.s[4].split(',')[1]||'').trim();return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.name,st,city].filter(Boolean).join(', '))}
 function foodLabel(p){const k=p.k.map(x=>FOOD[x].l);if(k.length)return k[0];const c=(p.t.cuisine||'').split(';')[0].replace(/_/g,' ');return c?c[0].toUpperCase()+c.slice(1):(p.t.amenity==='fast_food'?'Imbiss':'Restaurant')}
 
@@ -344,7 +354,7 @@ function card(c,best){
   <div class="facts"><div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>
   <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
   <div><b>${dt===undefined?'…':dt===null?'–':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div></div>
-  ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,3).map(p=>`<li><a href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">${esc(p.name)}</a><span>${esc(foodLabel(p))} · ${Math.max(1,Math.round(p.d*1.3/80))} min · <b class="${p.open?'op':''}">${p.open?'offen':'Zeiten ?'}</b></span></li>`).join('')}${c.eats.length>3?`<li><span>+${c.eats.length-3} weitere</span></li>`:''}</ul>`:''}
+  ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gSearch(p,c))}" target="_blank" rel="noopener"><strong>${esc(p.name)}</strong><span>${eatInfo(p)}</span></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">+${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:''}
   <div class="btns"><a class="gm" href="${esc(gLink(c))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(c))}" target="_blank" rel="noopener">Waze</a></div></article>`;
 }
 async function fillDetours(list,my){
@@ -368,9 +378,10 @@ function drawMap(all,hits,tgt){
     L.marker([c.s[1],c.s[2]],{zIndexOffset:on?1000:hitSet.has(c)?100:0,icon:L.divIcon({className:'',html:`<div class="pin${on?' sel':hitSet.has(c)?' in':''}"></div>`,iconSize:on?[24,24]:[14,14]})})
      .on('click',()=>select(c.s[0],false)).addTo(layer)});
   const shown=new Map();
-  hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>shown.set(p.name+p.lat,p)));
-  if(selC)(selC.eats||eatsAny(selC)).forEach(p=>shown.set(p.name+p.lat,p));
-  shown.forEach(p=>L.marker([p.lat,p.lon],{icon:L.divIcon({className:'',html:'<div class="dot"></div>',iconSize:[10,10]})}).bindPopup(esc(p.name+(p.t?.cuisine?' · '+foodLabel(p):''))).addTo(layer));
+  hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>shown.set(p.name+p.lat,[p,c])));
+  if(selC)(selC.eats||eatsAny(selC)).forEach(p=>shown.set(p.name+p.lat,[p,selC]));
+  shown.forEach(([p,c])=>L.marker([p.lat,p.lon],{zIndexOffset:500,icon:L.divIcon({className:'',html:'<div class="dotw"><div class="dot"></div></div>',iconSize:[26,26]})})
+    .bindPopup(`<div class="pop"><b>${esc(p.name)}</b><span>${esc(foodLabel(p))} · ${walk(p)} min zu Fuß · ${p.open?'<b class="op">offen</b>':'Zeiten ?'}</span><a href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">In Google Maps öffnen</a></div>`,{maxWidth:260,autoPanPaddingTopLeft:[10,64],autoPanPaddingBottomRight:[10,40]}).addTo(layer));
   if(tgt<route.dur){const p=pointAt(route,tgt);L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup('nach '+S.t+' min').addTo(layer)}
   if(sel&&!selC)sel=null;
   const key=route.t0+':'+sel;
