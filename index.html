@@ -96,6 +96,9 @@ summary{cursor:pointer;min-height:32px}
 .leaflet-container{font:inherit}
 .pin{width:14px;height:14px;border-radius:50%;background:var(--acc);border:2px solid #fff;box-shadow:0 1px 3px #0006}
 .pin.in{background:var(--hot)}
+.pin.p{background:#8a96a3}
+.tag.pt{color:var(--mute)}
+.hint{font-size:13px;color:var(--mute);margin:6px 0 0}
 .mark{width:18px;height:18px;border-radius:50%;background:#fff;border:5px solid var(--hot)}
 </style>
 </head>
@@ -134,7 +137,9 @@ summary{cursor:pointer;min-height:32px}
   <div class="row" id="net" role="group" aria-label="Netz">
     <button type="button" class="chip" data-v="core" aria-pressed="true">Nur EnBW</button>
     <button type="button" class="chip" data-v="group" aria-pressed="false">+ EnBW-Töchter</button>
+    <button type="button" class="chip" id="partner" aria-pressed="false">+ Andere Betreiber</button>
   </div>
+  <p class="hint" id="partnerHint" hidden></p>
 
   <label class="l">Essen beim Laden</label>
   <div class="row" id="food" role="group" aria-label="Essen">
@@ -180,7 +185,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem('ls_'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('ls_'+k,JSON.stringify(v))}catch(e){}}};
 
-const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[],walk:5},store.get('s',{}));
+const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[],walk:5,partner:false},store.get('s',{}));
 S.start=S.useHere?null:S.start;
 let route=null,map=null,layer=null,here=null;
 
@@ -194,6 +199,18 @@ function chips(id,key,num=true){
 chips('kw','kw');chips('net','net',false);chips('win','win');chips('cor','cor');
 const save=()=>store.set('s',S);
 if(!Array.isArray(S.food))S.food=[];
+/* Andere Betreiber: partners.json aus dem Ladesäulenregister, wird erst bei Bedarf geladen */
+let PARTNERS=null,partnerMeta=null,partnerErr='';
+async function loadPartners(){
+  if(PARTNERS||partnerErr)return;
+  try{const r=await fetch('partners.json',{cache:'no-cache'});if(!r.ok)throw new Error(r.status);const j=await r.json();PARTNERS=j.stations;partnerMeta=j.meta}
+  catch(e){partnerErr='Die Liste der anderen Betreiber ist noch nicht verfügbar.'}
+  showPartner();if(route&&PARTNERS&&!route.candsP){route.candsP=along(route,PARTNERS);render()}
+}
+function showPartner(){$('partner').setAttribute('aria-pressed',String(S.partner));const h=$('partnerHint');
+  h.hidden=!S.partner;h.textContent=partnerErr||(PARTNERS?`${PARTNERS.length.toLocaleString('de-DE')} Ladeorte anderer Betreiber ab 50 kW (Bundesnetzagentur, Stand ${new Date(partnerMeta.generatedAt).toLocaleDateString('de-DE')}). Meist mit der EnBW-App nutzbar, aber nicht garantiert. Preis je Betreiber unterschiedlich, siehe EnBW-App.`:'Lade Liste …')}
+$('partner').addEventListener('click',()=>{S.partner=!S.partner;save();showPartner();if(S.partner)loadPartners();if(route)render()});
+showPartner();if(S.partner)loadPartners();
 const walkM=()=>Math.round(S.walk*80/1.3); /* Luftlinie: 80 m/min Gehtempo, Umwegfaktor 1,3 */
 const showWalk=()=>{$('walk').value=S.walk;$('wv').textContent=S.walk;$('wm').textContent=`Minuten, ca. ${Math.round(S.walk*80/50)*50} m`};
 showWalk();
@@ -247,9 +264,9 @@ function prepRoute(rt,from,to){
   const f=rt.duration/T[n-1];for(let i=0;i<n;i++)T[i]*=f;
   return {co,X,Y,T,D,kx,ky,box:[minx,miny,maxx,maxy],dur:rt.duration,dist:rt.distance,from,to,detours:{}};
 }
-function along(R){ /* jede Säule auf die Route projizieren */
+function along(R,LIST=STATIONS){ /* jede Säule auf die Route projizieren */
   const pad=8000,[x0,y0,x1,y1]=R.box,res=[],n=R.X.length;
-  for(const s of STATIONS){
+  for(const s of LIST){
     const px=s[2]*R.kx,py=s[1]*R.ky;if(px<x0-pad||px>x1+pad||py<y0-pad||py>y1+pad)continue;
     let best=1e18,bi=0,bt=0;
     for(let i=0;i<n-1;i++){
@@ -335,7 +352,8 @@ const wLink=c=>`https://waze.com/ul?ll=${c.s[1]},${c.s[2]}&navigate=yes`;
 let renderSeq=0,sel=null,allOpen=false;
 function render(){
   if(!route)return;const my=++renderSeq,R=route,tgt=S.t*60,w=S.win*60;
-  const all=route.cands.filter(c=>c.s[3]>=S.kw&&(S.net==='group'||c.s[7])&&c.off<=S.cor*1000);
+  const pool=S.partner&&route.candsP?route.cands.concat(route.candsP).sort((a,b)=>a.eta-b.eta):route.cands;
+  const all=pool.filter(c=>c.s[3]>=S.kw&&(c.s[7]===1||(c.s[7]===0&&S.net==='group')||c.s[7]===2)&&c.off<=S.cor*1000);
   let hits=all.filter(c=>Math.abs(c.eta-tgt)<=w);
   const late=tgt>R.dur;
   if(late)hits=[];
@@ -350,7 +368,7 @@ function render(){
   hits.forEach(c=>c.dt=R.detours[c.s[0]]);
   const scored=hits.filter(c=>c.dt!=null);
   const best=scored.length?scored.reduce((a,b)=>score(b,tgt)<score(a,tgt)?b:a):null;
-  $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} EnBW-Säulen an der Strecke</span></div>`+
+  $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} ${S.partner&&route.candsP?'Säulen':'EnBW-Säulen'} an der Strecke</span></div>`+
    (late?`<div class="card">Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit für den Ladestopp.</div>`:
     (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(foodRetry?`<button type="button" class="chip" id="foodRetry" style="margin:4px 0 12px">Restaurantsuche nochmal versuchen</button>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
    (all.length&&!late?`<details id="all"${allOpen?' open':''}><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<button type="button" class="allrow${c.s[0]===sel?' sel':''}" data-id="${c.s[0]}">${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</button>`).join('')}</details>`:'');
@@ -362,8 +380,8 @@ function score(c,tgt){return Math.abs(c.eta-tgt)/60*0.5+(c.dt??30)/60+(c.eats&&!
 function card(c,best){
   const s=c.s,dt=c.dt;
   const on=s[0]===sel;
-  return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}">${on?'<span class="tag s">Auf der Karte</span> ':''}${best?'<span class="tag">Beste Wahl</span>':''}
-  <h3>${esc(s[5]||s[4].split(',')[0])}</h3><div class="ad">${esc(s[4])}${s[7]?'':' · '+esc(s[6])}</div>
+  return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}">${on?'<span class="tag s">Auf der Karte</span> ':''}${best?'<span class="tag">Beste Wahl</span> ':''}${s[7]===2?'<span class="tag pt">Anderer Betreiber, Preis in der EnBW-App prüfen</span>':''}
+  <h3>${esc(s[5]||s[4].split(',')[0])}</h3><div class="ad">${esc(s[4])}${s[7]===1?'':' · '+esc(s[6])}</div>
   <div class="facts"><div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>
   <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
   <div><b>${dt===undefined?'…':dt===null?'–':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div></div>
@@ -388,7 +406,7 @@ function drawMap(all,hits,tgt){
   const line=L.polyline(route.co.map(c=>[c[1],c[0]]),{color:'#1f6feb',weight:5,opacity:.8}).addTo(layer);
   const hitSet=new Set(hits);let selC=null;
   all.forEach(c=>{const on=c.s[0]===sel;if(on)selC=c;
-    L.marker([c.s[1],c.s[2]],{zIndexOffset:on?1000:hitSet.has(c)?100:0,icon:L.divIcon({className:'',html:`<div class="pin${on?' sel':hitSet.has(c)?' in':''}"></div>`,iconSize:on?[24,24]:[14,14]})})
+    L.marker([c.s[1],c.s[2]],{zIndexOffset:on?1000:hitSet.has(c)?100:0,icon:L.divIcon({className:'',html:`<div class="pin${on?' sel':hitSet.has(c)?' in':c.s[7]===2?' p':''}"></div>`,iconSize:on?[24,24]:[14,14]})})
      .on('click',()=>select(c.s[0],false)).addTo(layer)});
   const shown=new Map();
   hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>shown.set(p.name+p.lat,[p,c])));
@@ -424,13 +442,13 @@ $('f').addEventListener('submit',async e=>{
     else{if(!S.start){const q=$('start').value.trim();if(!q)throw new Error('Bitte eine Startadresse eingeben.');S.start=await firstHit(q);if(!S.start)throw new Error('Start nicht gefunden.')}from=[S.start.lat,S.start.lon]}
     save();msg('Berechne Route …');
     const rt=await osrm([from,[S.dest.lat,S.dest.lon]],true);
-    route=prepRoute(rt,from,S.dest);route.t0=Date.now();sel=null;route.cands=along(route);
+    route=prepRoute(rt,from,S.dest);route.t0=Date.now();sel=null;route.cands=along(route);route.candsP=PARTNERS?along(route,PARTNERS):null;
     msg('');render();$('mapwrap').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
   }catch(err){msg(err.message||'Fehler',true)}
   finally{btn.disabled=false}
 });
 const g=new Date(STATIONS_META.generatedAt);
-$('foot').textContent=`${STATIONS.filter(s=>s[7]).length} EnBW-Säulen und ${STATIONS.filter(s=>!s[7]).length} Säulen von EnBW-Töchtern (SMATRICS, naturenergie, PRE), alle ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Keine Roaming-Partner. Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr; die Navigation selbst läuft mit Verkehr in Google Maps. Karte, Adresssuche und Restaurants © OpenStreetMap-Mitwirkende. Öffnungszeiten laut OpenStreetMap, ohne Gewähr.`;
+$('foot').textContent=`${STATIONS.filter(s=>s[7]).length} EnBW-Säulen und ${STATIONS.filter(s=>!s[7]).length} Säulen von EnBW-Töchtern (SMATRICS, naturenergie, PRE), alle ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Andere Betreiber nur, wenn eingeschaltet (Quelle: Bundesnetzagentur, Ladesäulenregister, CC BY 4.0). Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr; die Navigation selbst läuft mit Verkehr in Google Maps. Karte, Adresssuche und Restaurants © OpenStreetMap-Mitwirkende. Öffnungszeiten laut OpenStreetMap, ohne Gewähr.`;
 window.__app={S,along,prepRoute,render,get route(){return route},set route(v){route=v}};
 }
 </script>
