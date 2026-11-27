@@ -19,6 +19,7 @@
 :root{color-scheme:light dark;--bg:light-dark(#f4f6f8,#0b141c);--card:light-dark(#fff,#13202b);--ink:light-dark(#0e1a24,#e8eef3);--mute:light-dark(#5b6b78,#93a4b3);--line:light-dark(#dfe5ea,#22323f);--acc:#1f6feb;--hot:#f2711c;--ok:#1a9e5c;--sel:#7c3aed}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
 main{max-width:640px;margin:0 auto;padding:16px}
 h1{font-size:26px;line-height:1.1;margin:8px 0 4px;font-weight:700}
@@ -99,13 +100,23 @@ summary{cursor:pointer;min-height:32px}
 .pin.p{background:#8a96a3}
 .tag.pt{color:var(--mute)}
 .hint{font-size:13px;color:var(--mute);margin:6px 0 0}
+.sw{all:unset;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin-top:14px;min-height:44px;cursor:pointer;font-weight:500}
+.sw i{flex:none;width:50px;height:30px;border-radius:15px;background:var(--line);position:relative;transition:background .15s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:transform .15s}
+.sw[aria-checked=true] i{background:var(--acc)}.sw[aria-checked=true] i::after{transform:translateX(20px)}
+.sw:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:8px}
+.sub2{border-left:3px solid var(--line);padding-left:12px;margin-top:4px}
+details.more{margin-top:14px;color:var(--ink);font-size:16px}
+details.more summary{color:var(--mute);font-size:14px;font-weight:500;min-height:40px;display:flex;align-items:center}
+details.more summary::before{content:'▸';margin-right:8px}details.more[open] summary::before{content:'▾'}
+@media (prefers-reduced-motion:reduce){.sw i,.sw i::after{transition:none}}
 .mark{width:18px;height:18px;border-radius:50%;background:#fff;border:5px solid var(--hot)}
 </style>
 </head>
 <body>
 <main>
 <h1>EnBW Ladestopp</h1>
-<p class="sub">Ziel eingeben, Pausenzeit wählen, Säule antippen. Navigiert wird in Google Maps.</p>
+<p class="sub">Ziel eingeben, Ladestopp wählen, Säule antippen. Navigiert wird in Google Maps.</p>
 
 <form class="card" id="f" autocomplete="off">
   <label class="l" for="dest">Ziel</label>
@@ -122,9 +133,13 @@ summary{cursor:pointer;min-height:32px}
     <ul class="sug" id="startSug"></ul>
   </div>
 
-  <label class="l" for="t">Ladestopp nach</label>
-  <div class="time"><span class="big" id="tv">60</span><span>Minuten Fahrzeit</span></div>
-  <input type="range" id="t" min="15" max="300" step="5" value="60">
+  <label class="l">Ladestopp nach</label>
+  <div class="row" id="mode" role="group" aria-label="Ladestopp nach">
+    <button type="button" class="chip" data-v="time" aria-pressed="true">Fahrzeit</button>
+    <button type="button" class="chip" data-v="km" aria-pressed="false">Kilometern</button>
+  </div>
+  <div class="time" style="margin-top:8px"><span class="big" id="tv">60</span><span id="tu">Minuten Fahrzeit</span></div>
+  <input type="range" id="t" min="15" max="300" step="5" value="60" aria-label="Ladestopp nach">
 
   <label class="l">Mindestleistung</label>
   <div class="row" id="kw" role="group" aria-label="Mindestleistung">
@@ -141,7 +156,8 @@ summary{cursor:pointer;min-height:32px}
   </div>
   <p class="hint" id="partnerHint" hidden></p>
 
-  <label class="l">Essen beim Laden</label>
+  <button type="button" class="sw" id="eat" role="switch" aria-checked="false"><span>Essen beim Laden</span><i></i></button>
+  <div id="eatBox" class="sub2" hidden>
   <div class="row" id="food" role="group" aria-label="Essen">
     <button type="button" class="chip" data-v="asia" aria-pressed="false">Asiatisch</button>
     <button type="button" class="chip" data-v="italia" aria-pressed="false">Italienisch</button>
@@ -151,8 +167,15 @@ summary{cursor:pointer;min-height:32px}
   <label class="l" for="walk">Fußweg von der Säule höchstens</label>
   <div class="time"><span class="big" id="wv">5</span><span id="wm">Minuten, ca. 400 m</span></div>
   <input type="range" id="walk" min="2" max="15" step="1" value="5">
+  </div>
 
-  <label class="l">Zeitfenster und Abstand zur Strecke</label>
+  <details class="more" id="more"><summary>Weitere Einstellungen</summary>
+  <label class="l">Suchfenster um den Ladestopp</label>
+  <div class="row" id="winkm" role="group" aria-label="Suchfenster in Kilometern">
+    <button type="button" class="chip" data-v="15" aria-pressed="false">±15 km</button>
+    <button type="button" class="chip" data-v="30" aria-pressed="true">±30 km</button>
+    <button type="button" class="chip" data-v="60" aria-pressed="false">±60 km</button>
+  </div>
   <div class="row" id="win" role="group" aria-label="Zeitfenster">
     <button type="button" class="chip" data-v="10" aria-pressed="false">±10 min</button>
     <button type="button" class="chip" data-v="20" aria-pressed="true">±20 min</button>
@@ -163,6 +186,8 @@ summary{cursor:pointer;min-height:32px}
     <button type="button" class="chip" data-v="3" aria-pressed="true">bis 3 km</button>
     <button type="button" class="chip" data-v="8" aria-pressed="false">bis 8 km</button>
   </div>
+  <p class="hint">Oben: wie weit vor oder nach deinem Wunschpunkt gesucht wird. Unten: wie weit die Säule höchstens neben der Strecke liegen darf.</p>
+  </details>
 
   <button class="go" id="go" type="submit">Säulen finden</button>
   <p class="msg" id="msg" role="status"></p>
@@ -185,7 +210,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem('ls_'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('ls_'+k,JSON.stringify(v))}catch(e){}}};
 
-const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[],walk:5,partner:false},store.get('s',{}));
+const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[],walk:5,partner:false,mode:'time',km:150,winKm:30,eat:false},store.get('s',{}));
 S.start=S.useHere?null:S.start;
 let route=null,map=null,layer=null,here=null;
 
@@ -196,9 +221,9 @@ function chips(id,key,num=true){
   box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;sync();save();if(route)render()});
   sync();
 }
-chips('kw','kw');chips('net','net',false);chips('win','win');chips('cor','cor');
+chips('kw','kw');chips('winkm','winKm');chips('mode','mode',false);chips('net','net',false);chips('win','win');chips('cor','cor');
 const save=()=>store.set('s',S);
-if(!Array.isArray(S.food))S.food=[];
+if(!Array.isArray(S.food))S.food=[];showEat();
 /* Andere Betreiber: partners.json aus dem Ladesäulenregister, wird erst bei Bedarf geladen */
 let PARTNERS=null,partnerMeta=null,partnerErr='';
 async function loadPartners(){
@@ -219,8 +244,15 @@ let walkT;$('walk').addEventListener('input',e=>{S.walk=+e.target.value;showWalk
  box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;const v=b.dataset.v;
   if(S.food.includes(v))S.food=S.food.filter(x=>x!==v);else S.food=v==='any'?['any']:S.food.filter(x=>x!=='any').concat(v);
   sync();save();if(route)render()});sync()}
-$('t').value=S.t;$('tv').textContent=S.t;
-$('t').addEventListener('input',e=>{S.t=+e.target.value;$('tv').textContent=S.t;save();if(route)render()});
+function showMode(){const km=S.mode==='km',t=$('t');
+  if(km){t.min=20;t.max=600;t.step=10;t.value=S.km}else{t.min=15;t.max=300;t.step=5;t.value=S.t}
+  $('tv').textContent=km?S.km:S.t;$('tu').textContent=km?'Kilometer ab Start':'Minuten Fahrzeit';
+  $('winkm').hidden=!km;$('win').hidden=km}
+showMode();
+$('mode').addEventListener('click',()=>showMode());
+$('t').addEventListener('input',e=>{if(S.mode==='km')S.km=+e.target.value;else S.t=+e.target.value;$('tv').textContent=e.target.value;save();if(route)render()});
+function showEat(){$('eat').setAttribute('aria-checked',String(S.eat));$('eatBox').hidden=!S.eat}
+$('eat').addEventListener('click',()=>{S.eat=!S.eat;if(S.eat&&!S.food.length){S.food=['any'];$('food').querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v==='any')))}showEat();save();if(route)render()});
 function setStartMode(hereMode){S.useHere=hereMode;$('startHere').setAttribute('aria-pressed',String(hereMode));$('startOther').setAttribute('aria-pressed',String(!hereMode));$('startBox').hidden=hereMode;save()}
 $('startHere').onclick=()=>setStartMode(true);$('startOther').onclick=()=>setStartMode(false);
 setStartMode(S.useHere);
@@ -279,6 +311,7 @@ function along(R,LIST=STATIONS){ /* jede Säule auf die Route projizieren */
   }
   return res.sort((a,b)=>a.eta-b.eta);
 }
+function pointAtDist(R,m){const D=R.D;let i=0;while(i<D.length-1&&D[i+1]<m)i++;return R.co[Math.min(i,R.co.length-1)]}
 function pointAt(R,sec){const T=R.T;let i=0;while(i<T.length-1&&T[i+1]<sec)i++;return R.co[Math.min(i,R.co.length-1)]}
 
 /* ---------- Essen (OpenStreetMap / Overpass) ---------- */
@@ -351,38 +384,41 @@ function gLink(c){const R=route,p=new URLSearchParams({api:'1',travelmode:'drivi
 const wLink=c=>`https://waze.com/ul?ll=${c.s[1]},${c.s[2]}&navigate=yes`;
 let renderSeq=0,sel=null,allOpen=false;
 function render(){
-  if(!route)return;const my=++renderSeq,R=route,tgt=S.t*60,w=S.win*60;
+  if(!route)return;const my=++renderSeq,R=route,km=S.mode==='km',tgt=km?S.km:S.t,w=km?S.winKm:S.win,unit=km?'km':'min';
+  const val=c=>km?c.km:c.eta/60;
   const pool=S.partner&&route.candsP?route.cands.concat(route.candsP).sort((a,b)=>a.eta-b.eta):route.cands;
   const all=pool.filter(c=>c.s[3]>=S.kw&&(c.s[7]===1||(c.s[7]===0&&S.net==='group')||c.s[7]===2)&&c.off<=S.cor*1000);
-  let hits=all.filter(c=>Math.abs(c.eta-tgt)<=w);
-  const late=tgt>R.dur;
+  let hits=all.filter(c=>Math.abs(val(c)-tgt)<=w);
+  const late=km?tgt>R.dist/1000:tgt*60>R.dur;
   if(late)hits=[];
-  const foodOn=S.food.length>0;let foodNote='',foodRetry=false;
+  const foodOn=S.eat&&S.food.length>0;let foodNote='',foodRetry=false;
   if(foodOn&&hits.length){
     loadFood(hits);
     const pending=hits.filter(c=>R.food?.[c.s[0]]===undefined||(R.food?.[c.s[0]]&&R.foodR[c.s[0]]<walkM())).length,failed=hits.every(c=>R.food?.[c.s[0]]===null);
     if(failed){foodNote='Restaurantsuche gerade nicht erreichbar. Gezeigt werden alle Säulen ohne Essensfilter.';foodRetry=true;hits.forEach(c=>c.eats=[])}
     else{foodRetry=hits.some(c=>R.food?.[c.s[0]]===null);hits.forEach(c=>c.eats=eats(c));const n=hits.length;hits=hits.filter(c=>c.eats.length);
-      foodNote=pending?`Suche Restaurants an ${pending} Säulen …`:hits.length?'':`An keiner der ${n} Säulen im Zeitfenster gibt es passendes Essen in ${S.walk} min Fußweg. Fußweg oder Zeitfenster vergrößern oder andere Küche wählen.`}
+      foodNote=pending?`Suche Restaurants an ${pending} Säulen …`:hits.length?'':`An keiner der ${n} Säulen im Suchfenster gibt es passendes Essen in ${S.walk} min Fußweg. Fußweg oder Suchfenster vergrößern oder andere Küche wählen.`}
   }else hits.forEach(c=>c.eats=null);
   hits.forEach(c=>c.dt=R.detours[c.s[0]]);
   const scored=hits.filter(c=>c.dt!=null);
-  const best=scored.length?scored.reduce((a,b)=>score(b,tgt)<score(a,tgt)?b:a):null;
+  const dev=c=>Math.abs(val(c)-tgt)/(km?1.6:1);
+  const best=scored.length?scored.reduce((a,b)=>score(b,dev(b))<score(a,dev(a))?b:a):null;
   $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} ${S.partner&&route.candsP?'Säulen':'EnBW-Säulen'} an der Strecke</span></div>`+
-   (late?`<div class="card">Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit für den Ladestopp.</div>`:
-    (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(foodRetry?`<button type="button" class="chip" id="foodRetry" style="margin:4px 0 12px">Restaurantsuche nochmal versuchen</button>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${S.t} ±${S.win} min und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
+   (late?`<div class="card">${km?`Die Strecke ist nur ${Math.round(R.dist/1000)} km lang. Wähle weniger Kilometer`:`Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit`} für den Ladestopp.</div>`:
+    (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(foodRetry?`<button type="button" class="chip" id="foodRetry" style="margin:4px 0 12px">Restaurantsuche nochmal versuchen</button>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${tgt} ±${w} ${unit} und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
    (all.length&&!late?`<details id="all"${allOpen?' open':''}><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<button type="button" class="allrow${c.s[0]===sel?' sel':''}" data-id="${c.s[0]}">${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</button>`).join('')}</details>`:'');
   const d=$('all');if(d)d.addEventListener('toggle',()=>{allOpen=d.open});
-  drawMap(all,hits,tgt);
+  let mark=null;if(!late){const p=km?pointAtDist(R,tgt*1000):pointAt(R,tgt*60);mark={p,label:'nach '+tgt+' '+unit}}
+  drawMap(all,hits,mark);
   fillDetours(hits.filter(c=>R.detours[c.s[0]]===undefined).slice(0,8),my);
 }
-function score(c,tgt){return Math.abs(c.eta-tgt)/60*0.5+(c.dt??30)/60+(c.eats&&!c.eats.some(p=>p.open)?3:0)}
+function score(c,devMin){return devMin*0.5+(c.dt??30)/60+(c.eats&&!c.eats.some(p=>p.open)?3:0)}
 function card(c,best){
   const s=c.s,dt=c.dt;
   const on=s[0]===sel;
   return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}">${on?'<span class="tag s">Auf der Karte</span> ':''}${best?'<span class="tag">Beste Wahl</span> ':''}${s[7]===2?'<span class="tag pt">Anderer Betreiber, Preis in der EnBW-App prüfen</span>':''}
   <h3>${esc(s[5]||s[4].split(',')[0])}</h3><div class="ad">${esc(s[4])}${s[7]===1?'':' · '+esc(s[6])}</div>
-  <div class="facts"><div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>
+  <div class="facts">${S.mode==='km'?`<div><b>km ${Math.round(c.km)}</b><span>nach ${esc(fmtT(c.eta))}</span></div>`:`<div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>`}
   <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
   <div><b>${dt===undefined?'…':dt===null?'–':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div></div>
   ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener"><strong>${esc(p.name)}</strong><span>${eatInfo(p)}</span></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">+${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:''}
@@ -398,7 +434,7 @@ async function fillDetours(list,my){
   }
 }
 let softT;function softUpdate(){clearTimeout(softT);softT=setTimeout(()=>{const y=scrollY;render();scrollTo(0,y)},120)}
-function drawMap(all,hits,tgt){
+function drawMap(all,hits,mark){
   $('mapwrap').style.display='block';const el=$('map');
   if(!window.L){el.textContent='Karte konnte nicht geladen werden.';return}
   if(!map){map=L.map(el,{zoomControl:false,attributionControl:true});L.control.zoom({position:'topleft'}).addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map)}
@@ -413,7 +449,7 @@ function drawMap(all,hits,tgt){
   if(selC)(selC.eats||eatsAny(selC)).forEach(p=>shown.set(p.name+p.lat,[p,selC]));
   shown.forEach(([p,c])=>L.marker([p.lat,p.lon],{zIndexOffset:500,icon:L.divIcon({className:'',html:'<div class="dotw"><div class="dot"></div></div>',iconSize:[26,26]})})
     .bindPopup(`<div class="pop"><b>${esc(p.name)}</b><span>${esc(foodLabel(p))} · ${walk(p)} min, ${meters(p)} m von der Säule · ${p.open?'<b class="op">offen</b>':'Zeiten ?'}</span><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener">Fußweg von der Säule</a><a class="sec" href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">Nur Eintrag öffnen</a></div>`,{maxWidth:260,autoPanPaddingTopLeft:[10,64],autoPanPaddingBottomRight:[10,40]}).addTo(layer));
-  if(tgt<route.dur){const p=pointAt(route,tgt);L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup('nach '+S.t+' min').addTo(layer)}
+  if(mark){const p=mark.p;L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup(esc(mark.label)).addTo(layer)}
   if(sel&&!selC)sel=null;
   const key=route.t0+':'+sel;
   if(map._view!==key){map._view=key;if(selC)map.setView([selC.s[1],selC.s[2]],16);else map.fitBounds(line.getBounds(),{padding:[20,20]})}
