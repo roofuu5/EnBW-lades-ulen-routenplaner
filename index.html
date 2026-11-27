@@ -91,6 +91,7 @@ summary{cursor:pointer;min-height:32px}
 .leaflet-popup-content{margin:12px 14px;font-size:14px;line-height:1.4}
 .pop b{display:block;font-size:15px}.pop span{display:block;color:var(--mute)}.pop .op{display:inline;color:var(--ok);font-size:inherit}
 .pop a{display:block;margin-top:8px;padding:9px 12px;border-radius:9px;background:var(--acc);color:#fff!important;text-align:center;font-weight:600;text-decoration:none}
+.pop a.sec{background:none;border:1px solid var(--line);color:var(--ink)!important;margin-top:6px}
 .foot{font-size:12px;color:var(--mute);margin:18px 2px 30px}
 .leaflet-container{font:inherit}
 .pin{width:14px;height:14px;border-radius:50%;background:var(--acc);border:2px solid #fff;box-shadow:0 1px 3px #0006}
@@ -135,13 +136,16 @@ summary{cursor:pointer;min-height:32px}
     <button type="button" class="chip" data-v="group" aria-pressed="false">+ EnBW-Töchter</button>
   </div>
 
-  <label class="l">Essen beim Laden (max. 5 min zu Fuß)</label>
+  <label class="l">Essen beim Laden</label>
   <div class="row" id="food" role="group" aria-label="Essen">
     <button type="button" class="chip" data-v="asia" aria-pressed="false">Asiatisch</button>
     <button type="button" class="chip" data-v="italia" aria-pressed="false">Italienisch</button>
     <button type="button" class="chip" data-v="burger" aria-pressed="false">Burger</button>
     <button type="button" class="chip" data-v="any" aria-pressed="false">Egal was</button>
   </div>
+  <label class="l" for="walk">Fußweg von der Säule höchstens</label>
+  <div class="time"><span class="big" id="wv">5</span><span id="wm">Minuten, ca. 400 m</span></div>
+  <input type="range" id="walk" min="2" max="15" step="1" value="5">
 
   <label class="l">Zeitfenster und Abstand zur Strecke</label>
   <div class="row" id="win" role="group" aria-label="Zeitfenster">
@@ -176,7 +180,7 @@ const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem('ls_'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('ls_'+k,JSON.stringify(v))}catch(e){}}};
 
-const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[]},store.get('s',{}));
+const S=Object.assign({dest:null,start:null,useHere:true,t:60,kw:150,net:'core',win:20,cor:3,food:[],walk:5},store.get('s',{}));
 S.start=S.useHere?null:S.start;
 let route=null,map=null,layer=null,here=null;
 
@@ -190,6 +194,10 @@ function chips(id,key,num=true){
 chips('kw','kw');chips('net','net',false);chips('win','win');chips('cor','cor');
 const save=()=>store.set('s',S);
 if(!Array.isArray(S.food))S.food=[];
+const walkM=()=>Math.round(S.walk*80/1.3); /* Luftlinie: 80 m/min Gehtempo, Umwegfaktor 1,3 */
+const showWalk=()=>{$('walk').value=S.walk;$('wv').textContent=S.walk;$('wm').textContent=`Minuten, ca. ${Math.round(S.walk*80/50)*50} m`};
+showWalk();
+let walkT;$('walk').addEventListener('input',e=>{S.walk=+e.target.value;showWalk();save();clearTimeout(walkT);if(route)walkT=setTimeout(softUpdate,400)});
 {const box=$('food');const sync=()=>box.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(S.food.includes(b.dataset.v))));
  box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;const v=b.dataset.v;
   if(S.food.includes(v))S.food=S.food.filter(x=>x!==v);else S.food=v==='any'?['any']:S.food.filter(x=>x!=='any').concat(v);
@@ -258,7 +266,6 @@ function pointAt(R,sec){const T=R.T;let i=0;while(i<T.length-1&&T[i+1]<sec)i++;r
 
 /* ---------- Essen (OpenStreetMap / Overpass) ---------- */
 const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
-const WALK_M=330; /* Luftlinie, entspricht etwa 5 min Fußweg */
 const FOOD={asia:{l:'Asiatisch',re:/asian|chinese|japanese|sushi|thai|vietnam|korean|ramen|noodle|indonesian|malaysian|taiwan|dim_sum|poke|wok|pho/},
  italia:{l:'Italienisch',re:/italian|pizza|pasta/},
  burger:{l:'Burger',re:/burger/,brand:/mc ?donald|burger king|five guys|hans im gl|peter pane|burgerme|jim block/}};
@@ -275,14 +282,16 @@ async function overpass(q){ /* Server gestaffelt anfragen, der erste mit Antwort
   finally{done=true;clearTimeout(kill)}
 }
 async function loadFood(list){
-  const R=route;R.food=R.food||{};R.foodPend=R.foodPend||new Set();
-  const todo=list.filter(c=>R.food[c.s[0]]===undefined&&!R.foodPend.has(c.s[0]));
+  const R=route,rad=walkM();R.food=R.food||{};R.foodR=R.foodR||{};R.foodPend=R.foodPend||new Set();
+  const todo=list.filter(c=>(R.food[c.s[0]]===undefined||(R.food[c.s[0]]&&R.foodR[c.s[0]]<rad))&&!R.foodPend.has(c.s[0]));
   for(let i=0;i<todo.length;i+=40){
     const part=todo.slice(i,i+40);part.forEach(c=>R.foodPend.add(c.s[0]));
-    const q='[out:json][timeout:25];('+part.map(c=>`nwr(around:${WALK_M},${c.s[1]},${c.s[2]})[amenity~"^(restaurant|fast_food)$"][name];`).join('')+');out center tags;';
+    const q='[out:json][timeout:25];('+part.map(c=>`nwr(around:${rad},${c.s[1]},${c.s[2]})[amenity~"^(restaurant|fast_food)$"][name];`).join('')+');out center tags;';
     try{const j=await overpass(q);
-      for(const c of part)R.food[c.s[0]]=j.elements.map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon;return {name:e.tags.name,t:e.tags,lat:la,lon:lo,d:la==null?1e9:hav(c.s[1],c.s[2],la,lo),k:kinds(e.tags)}}).filter(x=>x.d<=WALK_M).sort((a,b)=>a.d-b.d);
-    }catch(e){part.forEach(c=>R.food[c.s[0]]=null)}
+      for(const c of part)R.food[c.s[0]]=j.elements.map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon;return {name:e.tags.name,t:e.tags,lat:la,lon:lo,d:la==null?1e9:hav(c.s[1],c.s[2],la,lo),k:kinds(e.tags)}}).filter(x=>x.d<=rad).sort((a,b)=>a.d-b.d);
+      for(const c of part)R.foodR[c.s[0]]=rad;
+    }catch(e){part.forEach(c=>{if(!R.food[c.s[0]])R.food[c.s[0]]=null})}
+    part.forEach(c=>R.foodPend.delete(c.s[0]));
     if(R!==route)return;softUpdate();
   }
 }
@@ -305,11 +314,15 @@ function isOpen(oh,date){ /* true, false oder null (unbekannt); nicht genannte T
 }
 function eats(c){
   const list=route.food?.[c.s[0]];if(!list)return [];const arr=new Date(route.t0+c.eta*1000);
-  return list.filter(p=>S.food.includes('any')||p.k.some(k=>S.food.includes(k))).map(p=>Object.assign({},p,{open:isOpen(p.t.opening_hours,arr)}))
+  const rad=walkM();
+  return list.filter(p=>p.d<=rad).filter(p=>S.food.includes('any')||p.k.some(k=>S.food.includes(k))).map(p=>Object.assign({},p,{open:isOpen(p.t.opening_hours,arr)}))
     .filter(p=>p.open!==false).sort((a,b)=>(a.open?0:1)-(b.open?0:1)||a.d-b.d);
 }
 const walk=p=>Math.max(1,Math.round(p.d*1.3/80));
-function eatInfo(p){return `${esc(foodLabel(p))} · ${walk(p)} min · <b class="${p.open?'op':''}">${p.open?'offen':'Zeiten ?'}</b>`}
+const meters=p=>Math.round(p.d*1.3/10)*10;
+function eatInfo(p){return `${esc(foodLabel(p))} · ${walk(p)} min, ${meters(p)} m · <b class="${p.open?'op':''}">${p.open?'offen':'Zeiten ?'}</b>`}
+function gWalk(p,c){const st=[p.t['addr:street'],p.t['addr:housenumber']].filter(Boolean).join(' ');const city=p.t['addr:city']||(c.s[4].split(',')[1]||'').trim();
+  return 'https://www.google.com/maps/dir/?'+new URLSearchParams({api:'1',travelmode:'walking',origin:c.s[1]+','+c.s[2],destination:[p.name,st,city].filter(Boolean).join(', ')})}
 function gSearch(p,c){const st=[p.t['addr:street'],p.t['addr:housenumber']].filter(Boolean).join(' ');const city=p.t['addr:city']||(c.s[4].split(',')[1]||'').trim();return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.name,st,city].filter(Boolean).join(', '))}
 function foodLabel(p){const k=p.k.map(x=>FOOD[x].l);if(k.length)return k[0];const c=(p.t.cuisine||'').split(';')[0].replace(/_/g,' ');return c?c[0].toUpperCase()+c.slice(1):(p.t.amenity==='fast_food'?'Imbiss':'Restaurant')}
 
@@ -329,10 +342,10 @@ function render(){
   const foodOn=S.food.length>0;let foodNote='',foodRetry=false;
   if(foodOn&&hits.length){
     loadFood(hits);
-    const pending=hits.filter(c=>R.food?.[c.s[0]]===undefined).length,failed=hits.every(c=>R.food?.[c.s[0]]===null);
+    const pending=hits.filter(c=>R.food?.[c.s[0]]===undefined||(R.food?.[c.s[0]]&&R.foodR[c.s[0]]<walkM())).length,failed=hits.every(c=>R.food?.[c.s[0]]===null);
     if(failed){foodNote='Restaurantsuche gerade nicht erreichbar. Gezeigt werden alle Säulen ohne Essensfilter.';foodRetry=true;hits.forEach(c=>c.eats=[])}
     else{foodRetry=hits.some(c=>R.food?.[c.s[0]]===null);hits.forEach(c=>c.eats=eats(c));const n=hits.length;hits=hits.filter(c=>c.eats.length);
-      foodNote=pending?`Suche Restaurants an ${pending} Säulen …`:hits.length?'':`An keiner der ${n} Säulen im Zeitfenster gibt es passendes Essen in 5 min Fußweg. Zeitfenster vergrößern oder andere Küche wählen.`}
+      foodNote=pending?`Suche Restaurants an ${pending} Säulen …`:hits.length?'':`An keiner der ${n} Säulen im Zeitfenster gibt es passendes Essen in ${S.walk} min Fußweg. Fußweg oder Zeitfenster vergrößern oder andere Küche wählen.`}
   }else hits.forEach(c=>c.eats=null);
   hits.forEach(c=>c.dt=R.detours[c.s[0]]);
   const scored=hits.filter(c=>c.dt!=null);
@@ -354,7 +367,7 @@ function card(c,best){
   <div class="facts"><div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>
   <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
   <div><b>${dt===undefined?'…':dt===null?'–':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div></div>
-  ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gSearch(p,c))}" target="_blank" rel="noopener"><strong>${esc(p.name)}</strong><span>${eatInfo(p)}</span></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">+${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:''}
+  ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener"><strong>${esc(p.name)}</strong><span>${eatInfo(p)}</span></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">+${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:''}
   <div class="btns"><a class="gm" href="${esc(gLink(c))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(c))}" target="_blank" rel="noopener">Waze</a></div></article>`;
 }
 async function fillDetours(list,my){
@@ -381,7 +394,7 @@ function drawMap(all,hits,tgt){
   hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>shown.set(p.name+p.lat,[p,c])));
   if(selC)(selC.eats||eatsAny(selC)).forEach(p=>shown.set(p.name+p.lat,[p,selC]));
   shown.forEach(([p,c])=>L.marker([p.lat,p.lon],{zIndexOffset:500,icon:L.divIcon({className:'',html:'<div class="dotw"><div class="dot"></div></div>',iconSize:[26,26]})})
-    .bindPopup(`<div class="pop"><b>${esc(p.name)}</b><span>${esc(foodLabel(p))} · ${walk(p)} min zu Fuß · ${p.open?'<b class="op">offen</b>':'Zeiten ?'}</span><a href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">In Google Maps öffnen</a></div>`,{maxWidth:260,autoPanPaddingTopLeft:[10,64],autoPanPaddingBottomRight:[10,40]}).addTo(layer));
+    .bindPopup(`<div class="pop"><b>${esc(p.name)}</b><span>${esc(foodLabel(p))} · ${walk(p)} min, ${meters(p)} m von der Säule · ${p.open?'<b class="op">offen</b>':'Zeiten ?'}</span><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener">Fußweg von der Säule</a><a class="sec" href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">Nur Eintrag öffnen</a></div>`,{maxWidth:260,autoPanPaddingTopLeft:[10,64],autoPanPaddingBottomRight:[10,40]}).addTo(layer));
   if(tgt<route.dur){const p=pointAt(route,tgt);L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup('nach '+S.t+' min').addTo(layer)}
   if(sel&&!selC)sel=null;
   const key=route.t0+':'+sel;
@@ -390,7 +403,7 @@ function drawMap(all,hits,tgt){
   if(selC){bar.className='mapbar on';bar.innerHTML=`<b>${esc(selC.s[5]||selC.s[4].split(',')[0])}</b><span>${esc(fmtT(selC.eta))} ab Start · ${selC.s[3]} kW · ${pts(selC.s)} Ladepunkte</span><div class="btns"><a class="gm" href="${esc(gLink(selC))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(selC))}" target="_blank" rel="noopener">Waze</a></div>`}
   else{bar.className='mapbar';bar.innerHTML=''}
 }
-function eatsAny(c){const l=route.food?.[c.s[0]];return l?l.slice(0,6):[]}
+function eatsAny(c){const l=route.food?.[c.s[0]];return l?l.filter(p=>p.d<=walkM()).slice(0,6):[]}
 function select(id,scroll){
   sel=sel===id&&scroll?null:id;render();
   if(scroll&&sel&&!$('mapwrap').classList.contains('full'))$('mapwrap').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
