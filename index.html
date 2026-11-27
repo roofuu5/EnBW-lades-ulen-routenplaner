@@ -2,205 +2,352 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0e1a24">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0E518D">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Ladestopp">
-<title>EnBW Ladestopp</title>
-<link rel="preconnect" href="https://fonts.gstatic.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Ladestopp</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='15' fill='%230E518D'/%3E%3Crect x='4' y='4' width='56' height='56' rx='11.5' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M14 52 L28 20 H36 L50 52 Z' fill='%23fff'/%3E%3Cpath d='M32 50 V44 M32 39 V34 M32 30 V26' stroke='%230E518D' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M35 6 L25 21 H32 L28 33 L40 16 H33 Z' fill='%23F5B800' stroke='%230E518D' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
-/* VOICE: ruhig, sachlich, Cockpit-tauglich
-   IDEA: Fahrtenbuch-Streifen, auf dem die Stunde markiert ist
-   PICTURE: Karte mit Route, Zeitmarke und EnBW-Säulen
-   COLOUR and TYPE: weiß / Nachtblau, Signalblau, Orange nur für die Zeitmarke; Inter
-   LAYOUT: eine Spalte, Eingabe oben, Karte, dann Säulen in Fahrtreihenfolge */
-:root{color-scheme:light dark;--bg:light-dark(#f4f6f8,#0b141c);--card:light-dark(#fff,#13202b);--ink:light-dark(#0e1a24,#e8eef3);--mute:light-dark(#5b6b78,#93a4b3);--line:light-dark(#dfe5ea,#22323f);--acc:#1f6feb;--hot:#f2711c;--ok:#1a9e5c;--sel:#7c3aed}
+/* Ladestopp. Gestaltung aus der deutschen Verkehrsbeschilderung:
+   Verkehrsblau RAL 5017 als Schildfläche, Verkehrsgelb RAL 1023 für den Ladestopp, Asphalt für die Fahrbahn,
+   Verkehrsgrün für Essen. Schrift Barlow (Straßenschild-Grotesk) in drei Breiten.
+   Ein Element trägt die Gestaltung: das Streckenband im Kopf. Der Rest bleibt ruhig. */
+:root{
+  color-scheme:light dark;
+  --blue:#0E518D;--blue-d:#0A3F6E;--yellow:#F5B800;--asph:#2E343A;--green:#00845A;--grey:#8B959E;
+  --bg:light-dark(#E6EAED,#1A1F24);--panel:light-dark(#FFFFFF,#242A30);--well:light-dark(#EEF1F4,#1D2227);
+  --ink:light-dark(#17202A,#E8ECEF);--mute:light-dark(#566370,#9AA6B1);--line:light-dark(#D3D9DF,#363E46);
+  --selbg:light-dark(#E6EEF8,#1C3149);--ind:light-dark(#FFFFFF,#3A434C);--rail:light-dark(#2E343A,#4B555E);
+  --okbg:light-dark(#E2F3EB,#163428);
+  --sans:'Barlow',system-ui,-apple-system,sans-serif;--semi:'Barlow Semi Condensed','Barlow',system-ui,sans-serif;--cond:'Barlow Condensed','Barlow',system-ui,sans-serif;
+  --ease:cubic-bezier(.3,.7,.2,1);
+}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
 [hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-main{max-width:640px;margin:0 auto;padding:16px}
-h1{font-size:26px;line-height:1.1;margin:8px 0 4px;font-weight:700}
-.sub{color:var(--mute);font-size:14px;margin:0 0 14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
-label.l{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px;font-weight:500}
-label.l:first-child{margin-top:0}
-input[type=text]{width:100%;font:inherit;font-size:16px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:44px}
-input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.chip{font:inherit;font-size:14px;padding:9px 13px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-height:40px;cursor:pointer}
-.chip[aria-pressed=true]{background:var(--acc);border-color:var(--acc);color:#fff}
-.sug{list-style:none;margin:4px 0 0;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
-.sug:empty{display:none}
-.sug li button{all:unset;display:block;width:100%;padding:10px 12px;cursor:pointer;border-top:1px solid var(--line);font-size:15px}
-.sug li:first-child button{border-top:0}
-.sug small{color:var(--mute);display:block;font-size:13px}
-.time{display:flex;align-items:baseline;gap:10px}
-.big{font-size:40px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;color:var(--hot)}
-input[type=range]{width:100%;accent-color:var(--hot);height:36px}
-.go{width:100%;font:inherit;font-weight:600;font-size:17px;padding:14px;border:0;border-radius:12px;background:var(--acc);color:#fff;margin-top:14px;min-height:50px;cursor:pointer}
-.go:disabled{opacity:.6}
-.msg{font-size:14px;color:var(--mute);margin:8px 0 0}
-.msg.err{color:#d0342c}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 var(--sans);overflow-x:clip;padding-bottom:env(safe-area-inset-bottom)}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
 
-.mapwrap{position:relative;margin-bottom:12px;display:none}
-#map{height:300px;border-radius:14px;border:1px solid var(--line);z-index:0}
-.mapbtn{position:absolute;top:10px;right:10px;z-index:500;font:inherit;font-size:14px;font-weight:600;padding:9px 13px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:0 1px 4px #0003;cursor:pointer}
-.mapwrap.full{position:fixed;inset:0;z-index:1000;margin:0;background:var(--bg);padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-.mapwrap.full #map{height:100%;border-radius:0;border:0}
+/* ---------- Kopf: Schild mit Streckenband ---------- */
+.hero{position:relative;background:var(--blue);color:#fff;margin:calc(8px + env(safe-area-inset-top)) 8px 0;border-radius:22px;padding:18px 18px 16px;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:6px;border:2px solid #fff;border-radius:17px;pointer-events:none}
+.brand{display:flex;align-items:center;gap:12px;position:relative}
+.brand svg{flex:none;width:44px;height:44px}
+.brand b{display:block;font:700 30px/1 var(--semi);letter-spacing:.2px}
+.brand span{display:block;font-size:15px;opacity:.85;margin-top:3px}
+.bandwrap{position:relative;height:124px;margin:14px -4px 2px}
+#band{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+#band text{font-family:var(--sans);fill:#fff}
+#band .tick{font-size:12px;opacity:.75}
+#band .end{font:600 14px var(--semi)}
+#band .lbl{font:700 15px var(--cond);fill:var(--asph)}
+#band .stn{cursor:pointer}
+#band .hit{fill:transparent}
+.bandsum{position:relative;margin:0;font-size:16px;line-height:1.4;max-width:62ch;min-height:2.8em}
+.bandsum b{font-weight:600}
+
+/* Bandanimation: Fahrbahn wächst, Mittellinie läuft, Säulen erscheinen, Auto fährt zum Stopp */
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drive{from{stroke-dashoffset:180}to{stroke-dashoffset:0}}
+@keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.35)}100%{transform:scale(1)}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+#band.anim .road{transform-box:fill-box;transform-origin:left center;animation:grow .7s var(--ease) both}
+#band.anim .dash{animation:drive 1.4s linear both}
+#band.anim .stn circle:not(.hit){transform-box:fill-box;transform-origin:center;animation:pop .4s var(--ease) both;animation-delay:calc(.45s + var(--i,0) * 22ms)}
+#band.anim .win,#band.anim .flag,#band.anim .ticks{animation:fade .5s .5s both}
+
+/* ---------- Aufbau ---------- */
+.layout{padding:0 8px}
+.sheet{background:var(--panel);border-radius:20px;padding:6px 16px 18px;margin:10px 0 0}
+.lab{display:block;font:600 15px var(--semi);color:var(--mute);margin:18px 0 8px}
+.lab:first-child{margin-top:12px}
+input[type=text]{width:100%;font-size:17px;padding:13px 14px;min-height:52px;border-radius:13px;border:1.5px solid transparent;background:var(--well);color:var(--ink)}
+input[type=text]:focus{outline:none;border-color:var(--blue)}
+input[type=text]::placeholder{color:var(--mute)}
+.sug{list-style:none;margin:6px 0 0;padding:0;border-radius:13px;overflow:hidden;background:var(--well)}
+.sug:empty{display:none}
+.sug button{all:unset;box-sizing:border-box;display:block;width:100%;padding:11px 14px;cursor:pointer;border-top:1px solid var(--line)}
+.sug li:first-child button{border-top:0}
+.sug button:focus-visible{outline:3px solid var(--yellow);outline-offset:-3px}
+.sug small{display:block;color:var(--mute);font-size:14px}
+
+/* Segmentschalter mit gleitender Markierung */
+.seg{position:relative;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);background:var(--well);border-radius:14px;padding:4px}
+.seg .chip{all:unset;box-sizing:border-box;position:relative;z-index:1;text-align:center;padding:10px 4px;min-height:44px;display:flex;align-items:center;justify-content:center;font:500 16px var(--sans);color:var(--mute);border-radius:10px;cursor:pointer;white-space:nowrap;transition:color .2s}
+.seg .chip[aria-pressed=true]{color:var(--ink);font-weight:600}
+.seg .chip:focus-visible{outline:3px solid var(--yellow);outline-offset:-2px}
+.seg .ind{position:absolute;z-index:0;top:4px;bottom:4px;left:0;width:0;border-radius:10px;background:var(--ind);box-shadow:0 1px 3px rgba(15,30,45,.2);transition:transform .3s var(--ease),width .3s var(--ease)}
+.seg+.seg{margin-top:8px}
+
+/* Wert und Regler */
+.read{display:flex;align-items:baseline;gap:10px;margin:16px 0 2px}
+.read b{font:600 64px/.85 var(--cond);font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.read span{color:var(--mute);font-size:17px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0;--p:30%;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:5px;background:linear-gradient(90deg,var(--yellow) var(--p),var(--line) var(--p))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;margin-top:-10px;border-radius:50%;background:var(--yellow);border:3px solid var(--asph);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-track{height:10px;border-radius:5px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:10px;border-radius:5px;background:var(--yellow)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--yellow);border:3px solid var(--asph)}
+input[type=range]:focus-visible{outline:none}
+input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px var(--blue)}
+
+/* Schalter */
+.sw{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;min-height:52px;margin-top:10px;cursor:pointer}
+.sw span{font:600 18px var(--semi)}
+.sw small{display:block;font:400 14px var(--sans);color:var(--mute)}
+.sw i{flex:none;width:52px;height:32px;border-radius:16px;background:var(--line);position:relative;transition:background .2s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .25s var(--ease)}
+.sw[aria-checked=true] i{background:var(--blue)}.sw[aria-checked=true] i::after{transform:translateX(20px)}
+.sw:focus-visible{outline:3px solid var(--yellow);outline-offset:4px;border-radius:10px}
+.rule{border:0;border-top:1px solid var(--line);margin:18px 0 6px}
+.sub2{padding:4px 0 2px}
+.hint{font-size:14px;color:var(--mute);margin:8px 0 0;line-height:1.4}
+
+/* Küchen-Kacheln */
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:6px}
+.tiles .chip{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;min-height:50px;padding:10px 12px;border-radius:13px;background:var(--well);border:1.5px solid transparent;font-weight:500;cursor:pointer;transition:background .2s,border-color .2s}
+.tiles .chip::before{content:"";flex:none;width:18px;height:18px;border-radius:5px;border:2px solid var(--mute);transition:all .2s}
+.tiles .chip[aria-pressed=true]{border-color:var(--green);background:var(--okbg)}
+.tiles .chip[aria-pressed=true]::before{background:var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/14px no-repeat;border-color:var(--green)}
+.tiles .chip:focus-visible{outline:3px solid var(--yellow)}
+
+details.more{margin-top:14px}
+details.more summary{list-style:none;cursor:pointer;color:var(--mute);font:600 15px var(--semi);min-height:44px;display:flex;align-items:center;gap:8px}
+details.more summary::-webkit-details-marker{display:none}
+details.more summary::before{content:"";width:8px;height:8px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .2s}
+details.more[open] summary::before{transform:rotate(45deg)}
+
+.go{all:unset;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:58px;margin-top:20px;border-radius:15px;background:var(--blue);color:#fff;font:600 20px var(--semi);cursor:pointer;transition:transform .12s,background .2s}
+.go:active{transform:scale(.985)}
+.go:disabled{opacity:.7;cursor:progress}
+.go:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+.go .spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.msg{font-size:15px;color:var(--mute);margin:10px 2px 0}
+.msg.err{color:light-dark(#B3261E,#FF8A80)}
+
+/* Zusammengeklappte Eingabe */
+.fsum{display:none;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 0}
+.fsum p{margin:0;font-size:16px;line-height:1.35}
+.fsum p b{font:600 18px var(--semi);display:block}
+.ghost{all:unset;box-sizing:border-box;flex:none;padding:10px 16px;min-height:44px;display:flex;align-items:center;border-radius:12px;background:var(--well);font-weight:600;cursor:pointer}
+.ghost:focus-visible{outline:3px solid var(--yellow)}
+.sheet.done .fsum{display:flex}
+.sheet.done #fields{display:none}
+
+/* Karte */
+.mapwrap{position:relative;margin:10px 0 0;border-radius:20px;overflow:hidden;display:none;background:var(--panel)}
+#map{height:min(46vh,420px);z-index:0}
+.mapbtn{all:unset;box-sizing:border-box;position:absolute;top:10px;right:10px;z-index:500;padding:9px 14px;min-height:42px;border-radius:12px;background:var(--panel);color:var(--ink);font:600 16px var(--semi);box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}
+.mapbtn:focus-visible{outline:3px solid var(--yellow)}
+.mapwrap.full{position:fixed;inset:0;z-index:1000;margin:0;border-radius:0;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.mapwrap.full #map{height:100%}
 .mapwrap.full .mapbtn{top:calc(10px + env(safe-area-inset-top))}
-.mapbar{display:none;position:absolute;left:10px;right:10px;bottom:calc(28px + env(safe-area-inset-bottom));z-index:500;background:var(--card);border:2px solid var(--sel);border-radius:14px;padding:10px 12px;box-shadow:0 2px 10px #0004}
+.mapbar{display:none;position:absolute;left:10px;right:10px;bottom:calc(30px + env(safe-area-inset-bottom));z-index:500;background:var(--panel);border-radius:16px;padding:12px 14px;box-shadow:0 4px 18px rgba(0,0,0,.3)}
 .mapwrap.full .mapbar.on{display:block}
-.mapbar b{display:block;font-size:15px}.mapbar span{font-size:13px;color:var(--mute)}
-.mapbar .btns{margin-top:8px}
+.mapbar b{display:block;font:600 19px var(--semi)}
+.mapbar span{font-size:14px;color:var(--mute)}
+.mapbar .btns{margin-top:10px}
 body.lock{overflow:hidden}
-.st{cursor:pointer}
-.st.sel{border-color:var(--sel);box-shadow:0 0 0 2px var(--sel)}
-.st.sel .tag.s{color:var(--sel)}
-.pin.sel{width:24px;height:24px;background:var(--sel);border-width:3px}
-.allrow{all:unset;display:block;width:100%;padding:6px 0;cursor:pointer;border-bottom:1px solid var(--line)}
-.allrow.sel{color:var(--sel);font-weight:600}
-.sum{display:flex;justify-content:space-between;gap:8px;font-size:14px;color:var(--mute);margin:4px 2px 10px;flex-wrap:wrap}
-.st{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
-.st.best{border-color:var(--hot);box-shadow:0 0 0 1px var(--hot)}
-.st h3{margin:0;font-size:17px;line-height:1.25}
-.st .ad{color:var(--mute);font-size:14px;margin:2px 0 8px}
-.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:10px}
-.facts div{background:var(--bg);border-radius:9px;padding:6px 8px}
-.facts b{display:block;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.facts span{font-size:12px;color:var(--mute)}
-.tag{display:inline-block;font-size:12px;font-weight:600;color:var(--hot);margin-bottom:4px}
-.btns{display:grid;grid-template-columns:2fr 1fr;gap:8px}
-.btns a{display:flex;align-items:center;justify-content:center;min-height:46px;border-radius:10px;font-weight:600;text-decoration:none;font-size:15px}
-.gm{background:var(--acc);color:#fff}
-.wz{border:1px solid var(--line);color:var(--ink)}
-details{margin-top:6px;font-size:14px;color:var(--mute)}
-summary{cursor:pointer;min-height:32px}
-.eat{list-style:none;margin:0 0 10px;padding:0;border-top:1px solid var(--line)}
-.eat li{border-bottom:1px solid var(--line);font-size:14px}
-.eat a{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;min-height:44px;color:var(--ink);text-decoration:none}
-.eat a strong{font-weight:600}
-.eat a strong::after{content:" ›";color:var(--acc)}
-.eat span{color:var(--mute);text-align:right;white-space:nowrap}
-.eat li.more{padding:8px 0;color:var(--mute)}
-.eat .op{color:var(--ok)}
+.leaflet-container{font:inherit;background:var(--well)}
+.leaflet-bar a{background:var(--panel);color:var(--ink)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--ink);border-radius:14px}
+.leaflet-popup-content{margin:12px 14px;font-size:15px;line-height:1.4}
+.pop b{display:block;font:600 17px var(--semi)}
+.pop span{display:block;color:var(--mute)}
+.pop .op{color:var(--green);font-weight:600}
+.pop a{display:block;margin-top:9px;padding:10px 12px;border-radius:11px;background:var(--blue);color:#fff!important;text-align:center;font-weight:600;text-decoration:none}
+.pop a.sec{background:var(--well);color:var(--ink)!important;margin-top:6px}
+.pin{width:14px;height:14px;border-radius:50%;background:var(--blue);border:2.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.45)}
+.pin.in{background:var(--yellow);border-color:var(--asph)}
+.pin.p{background:var(--grey)}
+.pin.sel{width:26px;height:26px;background:var(--blue);border:4px solid var(--yellow)}
+.mark{width:18px;height:18px;margin:1px;transform:rotate(45deg);background:var(--yellow);border:2.5px solid #fff;outline:1.5px solid var(--asph);border-radius:3px}
 .dotw{width:26px;height:26px;display:grid;place-items:center;cursor:pointer}
-.dot{width:12px;height:12px;border-radius:50%;background:var(--ok);border:2px solid #fff;box-shadow:0 1px 3px #0006}
-.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--ink)}
-.leaflet-popup-content{margin:12px 14px;font-size:14px;line-height:1.4}
-.pop b{display:block;font-size:15px}.pop span{display:block;color:var(--mute)}.pop .op{display:inline;color:var(--ok);font-size:inherit}
-.pop a{display:block;margin-top:8px;padding:9px 12px;border-radius:9px;background:var(--acc);color:#fff!important;text-align:center;font-weight:600;text-decoration:none}
-.pop a.sec{background:none;border:1px solid var(--line);color:var(--ink)!important;margin-top:6px}
-.foot{font-size:12px;color:var(--mute);margin:18px 2px 30px}
-.leaflet-container{font:inherit}
-.pin{width:14px;height:14px;border-radius:50%;background:var(--acc);border:2px solid #fff;box-shadow:0 1px 3px #0006}
-.pin.in{background:var(--hot)}
-.pin.p{background:#8a96a3}
-.tag.pt{color:var(--mute)}
-.hint{font-size:13px;color:var(--mute);margin:6px 0 0}
-.sw{all:unset;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;margin-top:14px;min-height:44px;cursor:pointer;font-weight:500}
-.sw i{flex:none;width:50px;height:30px;border-radius:15px;background:var(--line);position:relative;transition:background .15s}
-.sw i::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:transform .15s}
-.sw[aria-checked=true] i{background:var(--acc)}.sw[aria-checked=true] i::after{transform:translateX(20px)}
-.sw:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:8px}
-.sub2{border-left:3px solid var(--line);padding-left:12px;margin-top:4px}
-details.more{margin-top:14px;color:var(--ink);font-size:16px}
-details.more summary{color:var(--mute);font-size:14px;font-weight:500;min-height:40px;display:flex;align-items:center}
-details.more summary::before{content:'▸';margin-right:8px}details.more[open] summary::before{content:'▾'}
-@media (prefers-reduced-motion:reduce){.sw i,.sw i::after{transition:none}}
-.mark{width:18px;height:18px;border-radius:50%;background:#fff;border:5px solid var(--hot)}
+.dot{width:13px;height:13px;border-radius:4px;background:var(--green);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+/* ---------- Ergebnisse als Strecke ---------- */
+#out{padding:6px 0 0}
+.note{font-size:15px;color:var(--mute);margin:12px 4px}
+.empty{background:var(--panel);border-radius:18px;padding:18px;margin:12px 0;font-size:16px}
+.retry{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;min-height:44px;padding:8px 16px;border-radius:12px;background:var(--panel);font-weight:600;cursor:pointer;margin:0 4px 12px}
+.tl{margin-top:14px}
+.st{display:grid;grid-template-columns:64px 30px minmax(0,1fr);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.st .num{text-align:right;padding-top:9px}
+.st .num b{display:block;font:600 30px/1 var(--cond);font-variant-numeric:tabular-nums}
+.st .num b.hm{font-size:26px}
+.st .num span{display:block;font-size:13px;color:var(--mute);margin-top:2px}
+.st .rail{position:relative}
+.st .rail::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;background:var(--rail)}
+.st:first-child .rail::before{top:20px}
+.st:last-child .rail::before{bottom:auto;height:20px}
+.st .rail::after{content:"";position:absolute;left:50%;top:13px;width:16px;height:16px;margin-left:-8px;border-radius:50%;background:var(--panel);border:4px solid var(--blue);box-sizing:border-box;transition:all .25s var(--ease)}
+.st.best .rail::after{background:var(--yellow);border-color:var(--asph)}
+.st.sel .rail::after{width:24px;height:24px;margin-left:-12px;top:9px;background:var(--blue);border-color:var(--yellow)}
+.st .body{background:var(--panel);border-radius:18px;padding:14px 14px 14px 16px;margin:0 0 12px 4px;border:2px solid transparent;transition:border-color .2s,background .2s}
+.st.sel .body{border-color:var(--blue);background:var(--selbg)}
+.st h3{margin:0;font:600 21px/1.15 var(--semi)}
+.st .ad{color:var(--mute);font-size:15px;margin-top:3px}
+.badges:empty{display:none}
+.badges{margin:0 0 8px}
+.badge{display:inline-block;font:600 14px/1.3 var(--semi);padding:2px 8px;border-radius:5px;margin:0 6px 4px 0}
+.badge.best{background:var(--yellow);color:#17202A}
+.badge.pt{background:var(--well);color:var(--mute)}
+.facts{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:8px 10px;margin:12px 0 14px}
+.facts div{display:flex;flex-direction:column}
+.facts b{font:600 18px/1.2 var(--semi);white-space:nowrap}
+.facts span{font-size:13px;color:var(--mute)}
+.btns{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.btns a{display:flex;align-items:center;justify-content:center;min-height:50px;padding:0 18px;border-radius:13px;font:600 17px var(--semi);text-decoration:none}
+.btns .gm{background:var(--blue);color:#fff}
+.btns .wz{background:var(--well);color:var(--ink)}
+.btns a:focus-visible{outline:3px solid var(--yellow)}
+.eat{list-style:none;margin:0 0 12px;padding:0}
+.eat a{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 0;min-height:48px;border-top:1px solid var(--line);color:inherit;text-decoration:none}
+.eat .ic{width:12px;height:12px;border-radius:4px;background:var(--green)}
+.eat strong{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eat small{grid-column:2;color:var(--mute);font-size:14px;margin-top:-4px}
+.eat em{grid-row:1;grid-column:3;font-style:normal;font-weight:600;white-space:nowrap}
+.eat .op{color:var(--green);font-weight:600}
+.eat li.more{padding:10px 0 0 24px;border-top:1px solid var(--line);color:var(--mute);font-size:14px}
+details.all{margin:6px 0 0;background:var(--panel);border-radius:18px;padding:4px 16px}
+details.all summary{list-style:none;cursor:pointer;min-height:50px;display:flex;align-items:center;font:600 17px var(--semi)}
+details.all summary::-webkit-details-marker{display:none}
+.allrow{all:unset;box-sizing:border-box;display:grid;grid-template-columns:62px 56px minmax(0,1fr);gap:8px;width:100%;padding:10px 0;border-top:1px solid var(--line);cursor:pointer;font-size:15px}
+.allrow b{font-weight:600;font-variant-numeric:tabular-nums}
+.allrow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.allrow.sel{color:var(--blue);font-weight:600}
+.allrow:focus-visible{outline:3px solid var(--yellow);outline-offset:-3px}
+.foot{font-size:13px;line-height:1.5;color:var(--mute);margin:22px 12px 34px;max-width:75ch}
+.placeholder{display:none}
+
+@media (min-width:980px){
+  body{font-size:16px}
+  .hero{margin:16px 16px 0;padding:22px 26px 18px}
+  .bandwrap{height:132px}
+  .layout{display:grid;grid-template-columns:420px minmax(0,1fr);gap:16px;max-width:1360px;margin:0 auto;padding:0 16px}
+  .side{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow:auto;scrollbar-width:thin;padding-bottom:12px}
+  .sheet{margin-top:16px}
+  .main{padding-top:16px}
+  .mapwrap{margin-top:0}
+  #map{height:52vh}
+  .placeholder{display:grid;place-items:center;text-align:center;min-height:52vh;border-radius:20px;background:var(--panel);color:var(--mute);padding:24px}
+  .placeholder b{display:block;font:600 24px var(--semi);color:var(--ink);margin-bottom:6px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
 </style>
 </head>
 <body>
-<main>
-<h1>EnBW Ladestopp</h1>
-<p class="sub">Ziel eingeben, Ladestopp wählen, Säule antippen. Navigiert wird in Google Maps.</p>
+<header class="hero">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#0A3F6E"/><rect x="4" y="4" width="56" height="56" rx="11.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M14 52 L28 20 H36 L50 52 Z" fill="#fff"/><path d="M32 50 V44 M32 39 V34 M32 30 V26" stroke="#0E518D" stroke-width="2.6" stroke-linecap="round"/><path d="M35 6 L25 21 H32 L28 33 L40 16 H33 Z" fill="#F5B800" stroke="#0A3F6E" stroke-width="2" stroke-linejoin="round"/></svg>
+    <div><b>Ladestopp</b><span>Ladeplanung mit EnBW-Säulen</span></div>
+  </div>
+  <div class="bandwrap"><svg id="band" role="img" aria-label="Streckenband mit Ladestopp"></svg></div>
+  <p class="bandsum" id="bandsum" aria-live="polite"></p>
+</header>
 
-<form class="card" id="f" autocomplete="off">
-  <label class="l" for="dest">Ziel</label>
-  <input type="text" id="dest" placeholder="z. B. München Marienplatz" enterkeyhint="search">
+<div class="layout">
+<section class="side">
+<form class="sheet" id="f" autocomplete="off">
+  <div class="fsum" id="fsum"><p id="fsumT"></p><button type="button" class="ghost" id="edit">Anpassen</button></div>
+  <div id="fields">
+  <label class="lab" for="dest">Ziel</label>
+  <input type="text" id="dest" placeholder="Stadt, Adresse oder Ort" enterkeyhint="search">
   <ul class="sug" id="destSug"></ul>
 
-  <label class="l" for="start">Start</label>
-  <div class="row" role="group" aria-label="Start">
+  <span class="lab">Start</span>
+  <div class="seg" role="group" aria-label="Start">
     <button type="button" class="chip" id="startHere" aria-pressed="true">Mein Standort</button>
     <button type="button" class="chip" id="startOther" aria-pressed="false">Andere Adresse</button>
   </div>
   <div id="startBox" hidden>
-    <input type="text" id="start" placeholder="Startadresse" style="margin-top:8px">
+    <input type="text" id="start" placeholder="Startadresse" style="margin-top:8px" aria-label="Startadresse">
     <ul class="sug" id="startSug"></ul>
   </div>
 
-  <label class="l">Ladestopp nach</label>
-  <div class="row" id="mode" role="group" aria-label="Ladestopp nach">
+  <span class="lab">Ladestopp nach</span>
+  <div class="seg" id="mode" role="group" aria-label="Ladestopp nach">
     <button type="button" class="chip" data-v="time" aria-pressed="true">Fahrzeit</button>
     <button type="button" class="chip" data-v="km" aria-pressed="false">Kilometern</button>
   </div>
-  <div class="time" style="margin-top:8px"><span class="big" id="tv">60</span><span id="tu">Minuten Fahrzeit</span></div>
+  <div class="read"><b id="tv">60</b><span id="tu">Minuten Fahrzeit</span></div>
   <input type="range" id="t" min="15" max="300" step="5" value="60" aria-label="Ladestopp nach">
-  <label class="l">Suchbereich davor und danach</label>
-  <div class="row" id="winkm" role="group" aria-label="Suchfenster in Kilometern">
+  <span class="lab">Suchbereich davor und danach</span>
+  <div class="seg" id="winkm" role="group" aria-label="Suchbereich in Kilometern">
     <button type="button" class="chip" data-v="10" aria-pressed="false">±10 km</button>
     <button type="button" class="chip" data-v="15" aria-pressed="false">±15 km</button>
     <button type="button" class="chip" data-v="30" aria-pressed="true">±30 km</button>
     <button type="button" class="chip" data-v="60" aria-pressed="false">±60 km</button>
   </div>
-  <div class="row" id="win" role="group" aria-label="Zeitfenster">
+  <div class="seg" id="win" role="group" aria-label="Suchbereich in Minuten">
     <button type="button" class="chip" data-v="5" aria-pressed="false">±5 min</button>
     <button type="button" class="chip" data-v="10" aria-pressed="false">±10 min</button>
     <button type="button" class="chip" data-v="20" aria-pressed="true">±20 min</button>
     <button type="button" class="chip" data-v="40" aria-pressed="false">±40 min</button>
   </div>
 
-  <label class="l">Mindestleistung</label>
-  <div class="row" id="kw" role="group" aria-label="Mindestleistung">
+  <span class="lab">Mindestleistung</span>
+  <div class="seg" id="kw" role="group" aria-label="Mindestleistung">
     <button type="button" class="chip" data-v="50" aria-pressed="false">50 kW</button>
     <button type="button" class="chip" data-v="150" aria-pressed="true">150 kW</button>
     <button type="button" class="chip" data-v="300" aria-pressed="false">300 kW</button>
   </div>
 
-  <label class="l">Netz</label>
-  <div class="row" id="net" role="group" aria-label="Netz">
+  <span class="lab">Netz</span>
+  <div class="seg" id="net" role="group" aria-label="Netz">
     <button type="button" class="chip" data-v="core" aria-pressed="true">Nur EnBW</button>
-    <button type="button" class="chip" data-v="group" aria-pressed="false">+ EnBW-Töchter</button>
-    <button type="button" class="chip" id="partner" aria-pressed="false">+ Andere Betreiber</button>
+    <button type="button" class="chip" data-v="group" aria-pressed="false">Mit EnBW-Töchtern</button>
   </div>
-  <p class="hint" id="partnerHint" hidden></p>
 
-  <button type="button" class="sw" id="eat" role="switch" aria-checked="false"><span>Essen beim Laden</span><i></i></button>
+  <hr class="rule">
+  <button type="button" class="sw" id="partner" role="switch" aria-checked="false"><span>Andere Betreiber<small>Säulen, die meist auch mit der EnBW-App laufen</small></span><i></i></button>
+  <p class="hint" id="partnerHint" hidden></p>
+  <button type="button" class="sw" id="eat" role="switch" aria-checked="false"><span>Essen beim Laden<small>Nur Säulen mit Restaurant in Laufweite</small></span><i></i></button>
   <div id="eatBox" class="sub2" hidden>
-  <div class="row" id="food" role="group" aria-label="Essen">
-    <button type="button" class="chip" data-v="asia" aria-pressed="false">Asiatisch</button>
-    <button type="button" class="chip" data-v="italia" aria-pressed="false">Italienisch</button>
-    <button type="button" class="chip" data-v="burger" aria-pressed="false">Burger</button>
-    <button type="button" class="chip" data-v="any" aria-pressed="false">Egal was</button>
-  </div>
-  <label class="l" for="walk">Fußweg von der Säule höchstens</label>
-  <div class="time"><span class="big" id="wv">5</span><span id="wm">Minuten, ca. 400 m</span></div>
-  <input type="range" id="walk" min="2" max="15" step="1" value="5">
+    <div class="tiles" id="food" role="group" aria-label="Küche">
+      <button type="button" class="chip" data-v="asia" aria-pressed="false">Asiatisch</button>
+      <button type="button" class="chip" data-v="italia" aria-pressed="false">Italienisch</button>
+      <button type="button" class="chip" data-v="burger" aria-pressed="false">Burger</button>
+      <button type="button" class="chip" data-v="any" aria-pressed="false">Egal was</button>
+    </div>
+    <div class="read"><b id="wv">5</b><span id="wm">Minuten zu Fuß</span></div>
+    <input type="range" id="walk" min="2" max="15" step="1" value="5" aria-label="Fußweg von der Säule höchstens">
   </div>
 
   <details class="more" id="more"><summary>Weitere Einstellungen</summary>
-  <label class="l">Abstand der Säule zur Strecke</label>
-  <div class="row" id="cor" role="group" aria-label="Abstand">
-    <button type="button" class="chip" data-v="1" aria-pressed="false">bis 1 km</button>
-    <button type="button" class="chip" data-v="3" aria-pressed="true">bis 3 km</button>
-    <button type="button" class="chip" data-v="8" aria-pressed="false">bis 8 km</button>
-  </div>
-  <p class="hint">Wie weit die Säule höchstens neben der Strecke liegen darf.</p>
+    <span class="lab">Abstand der Säule zur Strecke</span>
+    <div class="seg" id="cor" role="group" aria-label="Abstand zur Strecke">
+      <button type="button" class="chip" data-v="1" aria-pressed="false">bis 1 km</button>
+      <button type="button" class="chip" data-v="3" aria-pressed="true">bis 3 km</button>
+      <button type="button" class="chip" data-v="8" aria-pressed="false">bis 8 km</button>
+    </div>
   </details>
 
   <button class="go" id="go" type="submit">Säulen finden</button>
   <p class="msg" id="msg" role="status"></p>
+  </div>
 </form>
+</section>
 
-<div class="mapwrap" id="mapwrap"><div id="map"></div><button type="button" class="mapbtn" id="mapbtn">Vergrößern</button><div class="mapbar" id="mapbar"></div></div>
-<div id="out"></div>
-
+<section class="main">
+  <div class="placeholder" id="placeholder"><div><b>Noch keine Route</b>Gib links dein Ziel ein. Karte und Säulen erscheinen dann hier.</div></div>
+  <div class="mapwrap" id="mapwrap"><div id="map"></div><button type="button" class="mapbtn" id="mapbtn">Vergrößern</button><div class="mapbar" id="mapbar"></div></div>
+  <div id="out"></div>
+</section>
+</div>
 <p class="foot" id="foot"></p>
-</main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>const STATIONS_META={"generatedAt": "2026-10-23T14:39:21.348Z", "count": 2468};
@@ -221,7 +368,7 @@ let route=null,map=null,layer=null,here=null;
 function chips(id,key,num=true){
   const box=$(id);
   const sync=()=>box.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v==String(S[key]))));
-  box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;sync();save();if(route)render()});
+  box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;S[key]=num?+b.dataset.v:b.dataset.v;sync();save();refresh()});
   sync();
 }
 chips('kw','kw');chips('winkm','winKm');chips('mode','mode',false);chips('net','net',false);chips('win','win');chips('cor','cor');
@@ -235,27 +382,28 @@ async function loadPartners(){
   catch(e){partnerErr='Die Liste der anderen Betreiber ist noch nicht verfügbar.'}
   showPartner();if(route&&PARTNERS&&!route.candsP){route.candsP=along(route,PARTNERS);render()}
 }
-function showPartner(){$('partner').setAttribute('aria-pressed',String(S.partner));const h=$('partnerHint');
-  h.hidden=!S.partner;h.textContent=partnerErr||(PARTNERS?`${PARTNERS.length.toLocaleString('de-DE')} Ladeorte anderer Betreiber ab 50 kW (Bundesnetzagentur, Stand ${new Date(partnerMeta.generatedAt).toLocaleDateString('de-DE')}). Meist mit der EnBW-App nutzbar, aber nicht garantiert. Preis je Betreiber unterschiedlich, siehe EnBW-App.`:'Lade Liste …')}
-$('partner').addEventListener('click',()=>{S.partner=!S.partner;save();showPartner();if(S.partner)loadPartners();if(route)render()});
+function showPartner(){$('partner').setAttribute('aria-checked',String(S.partner));const h=$('partnerHint');
+  h.hidden=!S.partner;h.textContent=partnerErr||(PARTNERS?`${PARTNERS.length.toLocaleString('de-DE')} Ladeorte anderer Betreiber ab 50 kW laut Bundesnetzagentur, Stand ${new Date(partnerMeta.generatedAt).toLocaleDateString('de-DE')}. Ob eine Säule mit der EnBW-App läuft und was sie kostet, zeigt die EnBW-App.`:'Lade Liste …')}
+$('partner').addEventListener('click',()=>{S.partner=!S.partner;save();showPartner();if(S.partner)loadPartners();refresh()});
 showPartner();if(S.partner)loadPartners();
 const walkM=()=>Math.round(S.walk*80/1.3); /* Luftlinie: 80 m/min Gehtempo, Umwegfaktor 1,3 */
-const showWalk=()=>{$('walk').value=S.walk;$('wv').textContent=S.walk;$('wm').textContent=`Minuten, ca. ${Math.round(S.walk*80/50)*50} m`};
+const fill=i=>i.style.setProperty('--p',((i.value-i.min)/(i.max-i.min)*100)+'%');
+const showWalk=()=>{$('walk').value=S.walk;$('wv').textContent=S.walk;$('wm').textContent=`Minuten zu Fuß, etwa ${Math.round(S.walk*80/50)*50} m`;fill($('walk'))};
 showWalk();
 let walkT;$('walk').addEventListener('input',e=>{S.walk=+e.target.value;showWalk();save();clearTimeout(walkT);if(route)walkT=setTimeout(softUpdate,400)});
 {const box=$('food');const sync=()=>box.querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(S.food.includes(b.dataset.v))));
  box.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;const v=b.dataset.v;
   if(S.food.includes(v))S.food=S.food.filter(x=>x!==v);else S.food=v==='any'?['any']:S.food.filter(x=>x!=='any').concat(v);
-  sync();save();if(route)render()});sync()}
+  sync();save();refresh()});sync()}
 function showMode(){const km=S.mode==='km',t=$('t');
   if(km){t.min=20;t.max=600;t.step=10;t.value=S.km}else{t.min=15;t.max=300;t.step=5;t.value=S.t}
   $('tv').textContent=km?S.km:S.t;$('tu').textContent=km?'Kilometer ab Start':'Minuten Fahrzeit';
-  $('winkm').hidden=!km;$('win').hidden=km}
+  $('winkm').hidden=!km;$('win').hidden=km;fill(t)}
 showMode();
 $('mode').addEventListener('click',()=>showMode());
-$('t').addEventListener('input',e=>{if(S.mode==='km')S.km=+e.target.value;else S.t=+e.target.value;$('tv').textContent=e.target.value;save();if(route)render()});
+$('t').addEventListener('input',e=>{if(S.mode==='km')S.km=+e.target.value;else S.t=+e.target.value;$('tv').textContent=e.target.value;fill(e.target);save();refresh()});
 function showEat(){$('eat').setAttribute('aria-checked',String(S.eat));$('eatBox').hidden=!S.eat}
-$('eat').addEventListener('click',()=>{S.eat=!S.eat;if(S.eat&&!S.food.length){S.food=['any'];$('food').querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v==='any')))}showEat();save();if(route)render()});
+$('eat').addEventListener('click',()=>{S.eat=!S.eat;if(S.eat&&!S.food.length){S.food=['any'];$('food').querySelectorAll('.chip').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v==='any')))}showEat();save();refresh()});
 function setStartMode(hereMode){S.useHere=hereMode;$('startHere').setAttribute('aria-pressed',String(hereMode));$('startOther').setAttribute('aria-pressed',String(!hereMode));$('startBox').hidden=hereMode;save()}
 $('startHere').onclick=()=>setStartMode(true);$('startOther').onclick=()=>setStartMode(false);
 setStartMode(S.useHere);
@@ -373,7 +521,7 @@ function eats(c){
 }
 const walk=p=>Math.max(1,Math.round(p.d*1.3/80));
 const meters=p=>Math.round(p.d*1.3/10)*10;
-function eatInfo(p){return `${esc(foodLabel(p))} · ${walk(p)} min, ${meters(p)} m · <b class="${p.open?'op':''}">${p.open?'offen':'Zeiten ?'}</b>`}
+function eatInfo(p){return `${esc(foodLabel(p))}, ${meters(p)} m, ${p.open?'<span class="op">offen bei Ankunft</span>':'Öffnungszeit unbekannt'}`}
 function gWalk(p,c){const st=[p.t['addr:street'],p.t['addr:housenumber']].filter(Boolean).join(' ');const city=p.t['addr:city']||(c.s[4].split(',')[1]||'').trim();
   return 'https://www.google.com/maps/dir/?'+new URLSearchParams({api:'1',travelmode:'walking',origin:c.s[1]+','+c.s[2],destination:[p.name,st,city].filter(Boolean).join(', ')})}
 function gSearch(p,c){const st=[p.t['addr:street'],p.t['addr:housenumber']].filter(Boolean).join(' ');const city=p.t['addr:city']||(c.s[4].split(',')[1]||'').trim();return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.name,st,city].filter(Boolean).join(', '))}
@@ -406,26 +554,32 @@ function render(){
   const scored=hits.filter(c=>c.dt!=null);
   const dev=c=>Math.abs(val(c)-tgt)/(km?1.6:1);
   const best=scored.length?scored.reduce((a,b)=>score(b,dev(b))<score(a,dev(a))?b:a):null;
-  $('out').innerHTML=`<div class="sum"><span>${esc(fmtT(R.dur))} · ${Math.round(R.dist/1000)} km bis ${esc(R.to.label.split(',')[0])}</span><span>${all.length} ${S.partner&&route.candsP?'Säulen':'EnBW-Säulen'} an der Strecke</span></div>`+
-   (late?`<div class="card">${km?`Die Strecke ist nur ${Math.round(R.dist/1000)} km lang. Wähle weniger Kilometer`:`Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit`} für den Ladestopp.</div>`:
-    (foodNote?`<p class="msg">${esc(foodNote)}</p>`:'')+(foodRetry?`<button type="button" class="chip" id="foodRetry" style="margin:4px 0 12px">Restaurantsuche nochmal versuchen</button>`:'')+(hits.length?hits.map(c=>card(c,c===best)).join(''):foodOn&&foodNote?'':`<div class="card">Keine EnBW-Säule mit mindestens ${S.kw} kW im Fenster ${tgt} ±${w} ${unit} und bis ${S.cor} km neben der Strecke. Fenster oder Abstand vergrößern.</div>`))+
-   (all.length&&!late?`<details id="all"${allOpen?' open':''}><summary>Alle ${all.length} Säulen an der Strecke in Fahrtreihenfolge</summary>${all.map(c=>`<button type="button" class="allrow${c.s[0]===sel?' sel':''}" data-id="${c.s[0]}">${esc(fmtT(c.eta))} · km ${Math.round(c.km)} · ${c.s[3]} kW · ${esc(c.s[5]||c.s[4])}</button>`).join('')}</details>`:'');
+  const dest=R.to.label.split(',')[0],nS=S.partner&&route.candsP?'Säulen':'EnBW-Säulen';
+  $('placeholder').hidden=true;
+  $('out').innerHTML=(late?`<div class="empty">${km?`Die Strecke ist nur ${Math.round(R.dist/1000)} km lang. Wähle weniger Kilometer`:`Die Fahrt dauert nur ${esc(fmtT(R.dur))}. Wähle eine kürzere Zeit`} für den Ladestopp.</div>`:
+    (foodNote?`<p class="note">${esc(foodNote)}</p>`:'')+(foodRetry?`<button type="button" class="retry" id="foodRetry">Restaurantsuche nochmal versuchen</button>`:'')+
+    (hits.length?`<div class="tl">${hits.map(c=>card(c,c===best)).join('')}</div>`:foodOn&&foodNote?'':`<div class="empty">Keine passende Säule ab ${S.kw} kW bei ${tgt} ±${w} ${unit} und höchstens ${S.cor} km neben der Strecke. Vergrößere den Suchbereich oder senke die Mindestleistung.</div>`))+
+   (all.length&&!late?`<details class="all" id="all"${allOpen?' open':''}><summary>Alle ${all.length} ${nS} an der Strecke</summary>${all.map(c=>`<button type="button" class="allrow${c.s[0]===sel?' sel':''}" data-id="${c.s[0]}"><b>${esc(fmtT(c.eta))}</b><span>km ${Math.round(c.km)}</span><span>${c.s[3]} kW, ${esc(c.s[5]||c.s[4].split(',')[0])}</span></button>`).join('')}</details>`:'');
   const d=$('all');if(d)d.addEventListener('toggle',()=>{allOpen=d.open});
-  let mark=null;if(!late){const p=km?pointAtDist(R,tgt*1000):pointAt(R,tgt*60);mark={p,label:'nach '+tgt+' '+unit}}
+  $('bandsum').innerHTML=`Nach <b>${esc(dest)}</b>: ${Math.round(R.dist/1000)} km, ${esc(fmtT(R.dur))} ohne Verkehr. ${all.length} ${nS} an der Strecke, ${hits.length} im Suchbereich.`;
+  $('fsumT').innerHTML=`<b>Nach ${esc(dest)}</b>Ladestopp nach ${tgt} ${unit}, ±${w} ${unit}, ab ${S.kw} kW${S.eat?', mit Essen':''}`;
+  drawBand({total:km?R.dist/1000:R.dur/60,unit,tgt,w,late,dest,st:all.map(c=>({id:c.s[0],v:val(c),k:c.s[0]===sel?'sel':hits.includes(c)?'hit':c.s[7]===2?'p':'n'}))});
+  let mark=null;if(!late){const p=km?pointAtDist(R,tgt*1000):pointAt(R,tgt*60);mark={p,label:'Ladestopp nach '+tgt+' '+unit}}
   drawMap(all,hits,mark);
   fillDetours(hits.filter(c=>R.detours[c.s[0]]===undefined).slice(0,8),my);
 }
 function score(c,devMin){return devMin*0.5+(c.dt??30)/60+(c.eats&&!c.eats.some(p=>p.open)?3:0)}
 function card(c,best){
-  const s=c.s,dt=c.dt;
-  const on=s[0]===sel;
-  return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}">${on?'<span class="tag s">Auf der Karte</span> ':''}${best?'<span class="tag">Beste Wahl</span> ':''}${s[7]===2?'<span class="tag pt">Anderer Betreiber, Preis in der EnBW-App prüfen</span>':''}
-  <h3>${esc(s[5]||s[4].split(',')[0])}</h3><div class="ad">${esc(s[4])}${s[7]===1?'':' · '+esc(s[6])}</div>
-  <div class="facts">${S.mode==='km'?`<div><b>km ${Math.round(c.km)}</b><span>nach ${esc(fmtT(c.eta))}</span></div>`:`<div><b>${esc(fmtT(c.eta))}</b><span>ab Start · km ${Math.round(c.km)}</span></div>`}
-  <div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
-  <div><b>${dt===undefined?'…':dt===null?'–':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div></div>
-  ${c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener"><strong>${esc(p.name)}</strong><span>${eatInfo(p)}</span></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">+${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:''}
-  <div class="btns"><a class="gm" href="${esc(gLink(c))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(c))}" target="_blank" rel="noopener">Waze</a></div></article>`;
+  const s=c.s,dt=c.dt,on=s[0]===sel,km=S.mode==='km',m=Math.round(c.eta/60);
+  const num=km?`<b>${Math.round(c.km)}</b><span>km</span>`:m<60?`<b>${m}</b><span>min</span>`:`<b class="hm">${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}</b><span>Std.</span>`;
+  const badges=(best?'<span class="badge best">Beste Wahl</span>':'')+(s[7]===2?'<span class="badge pt">Anderer Betreiber, Preis in der EnBW-App</span>':'');
+  const eatL=c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener" aria-label="${esc(p.name)}: Fußweg von der Säule in Google Maps"><span class="ic"></span><strong>${esc(p.name)}</strong><em>${walk(p)} min</em><small>${eatInfo(p)}</small></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:'';
+  return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}"><div class="num">${num}</div><div class="rail"></div><div class="body">
+  <div class="badges">${badges}</div><h3>${esc(s[5]||s[4].split(',')[0])}</h3><div class="ad">${esc(s[4].replace(/, DE$/,''))}${s[7]===1?'':', '+esc(s[6])}</div>
+  <div class="facts"><div><b>${s[3]} kW</b><span>${pts(s)} Ladepunkte</span></div>
+  <div><b>${dt===undefined?'…':dt===null?'unbekannt':'+'+Math.max(0,Math.round(dt/60))+' min'}</b><span>Umweg</span></div>
+  <div><b>${km?esc(fmtT(c.eta)):'km '+Math.round(c.km)}</b><span>${km?'Fahrzeit bis hier':'ab Start'}</span></div></div>
+  ${eatL}<div class="btns"><a class="gm" href="${esc(gLink(c))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(c))}" target="_blank" rel="noopener">Waze</a></div></div></article>`;
 }
 async function fillDetours(list,my){
   const R=route;R.pend=R.pend||new Set();list=list.filter(c=>!R.pend.has(c.s[0]));
@@ -442,7 +596,7 @@ function drawMap(all,hits,mark){
   if(!window.L){el.textContent='Karte konnte nicht geladen werden.';return}
   if(!map){map=L.map(el,{zoomControl:false,attributionControl:true});L.control.zoom({position:'topleft'}).addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map)}
   if(layer)layer.remove();layer=L.layerGroup().addTo(map);
-  const line=L.polyline(route.co.map(c=>[c[1],c[0]]),{color:'#1f6feb',weight:5,opacity:.8}).addTo(layer);
+  const ll=route.co.map(c=>[c[1],c[0]]);L.polyline(ll,{color:'#fff',weight:10,opacity:.9}).addTo(layer);const line=L.polyline(ll,{color:'#0E518D',weight:6}).addTo(layer);
   const hitSet=new Set(hits);let selC=null;
   all.forEach(c=>{const on=c.s[0]===sel;if(on)selC=c;
     L.marker([c.s[1],c.s[2]],{zIndexOffset:on?1000:hitSet.has(c)?100:0,icon:L.divIcon({className:'',html:`<div class="pin${on?' sel':hitSet.has(c)?' in':c.s[7]===2?' p':''}"></div>`,iconSize:on?[24,24]:[14,14]})})
@@ -451,13 +605,13 @@ function drawMap(all,hits,mark){
   hits.forEach(c=>(c.eats||[]).slice(0,3).forEach(p=>shown.set(p.name+p.lat,[p,c])));
   if(selC)(selC.eats||eatsAny(selC)).forEach(p=>shown.set(p.name+p.lat,[p,selC]));
   shown.forEach(([p,c])=>L.marker([p.lat,p.lon],{zIndexOffset:500,icon:L.divIcon({className:'',html:'<div class="dotw"><div class="dot"></div></div>',iconSize:[26,26]})})
-    .bindPopup(`<div class="pop"><b>${esc(p.name)}</b><span>${esc(foodLabel(p))} · ${walk(p)} min, ${meters(p)} m von der Säule · ${p.open?'<b class="op">offen</b>':'Zeiten ?'}</span><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener">Fußweg von der Säule</a><a class="sec" href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">Nur Eintrag öffnen</a></div>`,{maxWidth:260,autoPanPaddingTopLeft:[10,64],autoPanPaddingBottomRight:[10,40]}).addTo(layer));
+    .bindPopup(`<div class="pop"><b>${esc(p.name)}</b><span>${esc(foodLabel(p))}, ${walk(p)} min zu Fuß (${meters(p)} m) von der Säule</span><span>${p.open?'<span class="op">offen bei Ankunft</span>':'Öffnungszeit unbekannt'}</span><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener">Fußweg von der Säule</a><a class="sec" href="${esc(gSearch(p,c))}" target="_blank" rel="noopener">Nur Eintrag öffnen</a></div>`,{maxWidth:260,autoPanPaddingTopLeft:[10,64],autoPanPaddingBottomRight:[10,40]}).addTo(layer));
   if(mark){const p=mark.p;L.marker([p[1],p[0]],{icon:L.divIcon({className:'',html:'<div class="mark"></div>',iconSize:[18,18]})}).bindPopup(esc(mark.label)).addTo(layer)}
   if(sel&&!selC)sel=null;
   const key=route.t0+':'+sel;
   if(map._view!==key){map._view=key;if(selC)map.setView([selC.s[1],selC.s[2]],16);else map.fitBounds(line.getBounds(),{padding:[20,20]})}
   const bar=$('mapbar');
-  if(selC){bar.className='mapbar on';bar.innerHTML=`<b>${esc(selC.s[5]||selC.s[4].split(',')[0])}</b><span>${esc(fmtT(selC.eta))} ab Start · ${selC.s[3]} kW · ${pts(selC.s)} Ladepunkte</span><div class="btns"><a class="gm" href="${esc(gLink(selC))}" target="_blank" rel="noopener">Google Maps</a><a class="wz" href="${esc(wLink(selC))}" target="_blank" rel="noopener">Waze</a></div>`}
+  if(selC){bar.className='mapbar on';bar.innerHTML=`<b>${esc(selC.s[5]||selC.s[4].split(',')[0])}</b><span>${esc(fmtT(selC.eta))} ab Start, km ${Math.round(selC.km)}, ${selC.s[3]} kW, ${pts(selC.s)} Ladepunkte</span><div class="btns"><a class="gm" href="${esc(gLink(selC))}" target="_blank" rel="noopener">Mit Google Maps fahren</a><a class="wz" href="${esc(wLink(selC))}" target="_blank" rel="noopener">Waze</a></div>`}
   else{bar.className='mapbar';bar.innerHTML=''}
 }
 function eatsAny(c){const l=route.food?.[c.s[0]];return l?l.filter(p=>p.d<=walkM()).slice(0,6):[]}
@@ -471,9 +625,60 @@ function setBig(on){$('mapwrap').classList.toggle('full',on);document.body.class
 $('mapbtn').addEventListener('click',()=>setBig(!$('mapwrap').classList.contains('full')));
 addEventListener('keydown',e=>{if(e.key==='Escape')setBig(false)});
 
+/* ---------- Streckenband im Kopf ---------- */
+const band=$('band');let bandLast=null,bandAnim=true;
+const reduce=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawBand(o){
+  bandLast=o;if(band.clientWidth<120)return;const anim=bandAnim&&!reduce();bandAnim=false;
+  const W=band.clientWidth,H=band.clientHeight||124,x0=12,x1=W-12,ry=Math.round(H*.56);
+  const X=v=>x0+(x1-x0)*Math.max(0,Math.min(1,v/o.total));
+  const destTxt=o.dest||'Ziel',dw=destTxt.length*7.6+10;
+  const step=o.unit==='min'?(o.total<=150?30:o.total<=420?60:120):(o.total<=250?50:o.total<=700?100:200);
+  let ticks='';
+  for(let v=step;v<o.total;v+=step){const x=X(v);if(x-x0<52||x1-x<dw+24)continue;
+    ticks+=`<line x1="${x}" x2="${x}" y1="${ry+15}" y2="${ry+21}" stroke="#fff" stroke-opacity=".55" stroke-width="1.5"/><text class="tick" x="${x}" y="${ry+36}" text-anchor="middle">${o.unit==='min'?(v%60?v+' min':v/60+' h'):v+' km'}</text>`}
+  const tx=X(o.tgt),lo=X(o.tgt-o.w),hi=X(o.tgt+o.w),lab=o.late?'zu weit':o.tgt+' '+o.unit,lw=lab.length*8.4+18,lx=Math.max(x0-4,Math.min(x1-lw+4,tx-lw/2));
+  const sty={n:'r="4" fill="#fff" stroke="#0E518D" stroke-width="2"',p:'r="3.5" fill="#AEB8C1"',hit:'r="6" fill="#F5B800" stroke="#2E343A" stroke-width="2"',sel:'r="8" fill="#0E518D" stroke="#F5B800" stroke-width="3.5"'};
+  const rank={p:0,n:1,hit:2,sel:3};
+  const st=o.st.slice().sort((a,b)=>rank[a.k]-rank[b.k]);
+  const carX=o.late?x1:tx;
+  band.innerHTML=`<g class="ticks">${ticks}</g>
+  <rect class="road" x="${x0}" y="${ry-12}" width="${x1-x0}" height="24" rx="12" fill="#2E343A"/>
+  <g class="road"><line x1="${x0+10}" x2="${x1-10}" y1="${ry-8.5}" y2="${ry-8.5}" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/><line x1="${x0+10}" x2="${x1-10}" y1="${ry+8.5}" y2="${ry+8.5}" stroke="#fff" stroke-opacity=".45" stroke-width="1.2"/></g>
+  <line class="dash" x1="${x0+16}" x2="${x1-16}" y1="${ry}" y2="${ry}" stroke="#fff" stroke-opacity=".9" stroke-width="2" stroke-dasharray="10 8"/>
+  ${o.late?'':`<rect class="win" x="${lo}" y="${ry-12}" width="${Math.max(4,hi-lo)}" height="24" rx="5" fill="#F5B800" fill-opacity=".42"/>`}
+  ${st.map((s,i)=>`<g class="stn" data-id="${s.id}" style="--i:${i}"><circle class="hit" cx="${X(s.v)}" cy="${ry}" r="12"/><circle cx="${X(s.v)}" cy="${ry}" ${sty[s.k]}/></g>`).join('')}
+  <g class="flag"><line x1="${tx}" x2="${tx}" y1="${ry-13}" y2="${ry-30}" stroke="#F5B800" stroke-width="3"/><rect x="${lx}" y="${ry-56}" width="${lw}" height="26" rx="6" fill="#F5B800"/><text class="lbl" x="${lx+lw/2}" y="${ry-37.5}" text-anchor="middle">${esc(lab)}</text></g>
+  <circle cx="${x0+2}" cy="${ry}" r="7" fill="#fff" stroke="#2E343A" stroke-width="3"/>
+  <g transform="translate(${x1-2} ${ry})"><circle r="8" fill="#fff"/><circle r="3.5" fill="#0E518D"/></g>
+  <circle cx="${anim?x0+2:carX}" cy="${ry}" r="6" fill="#fff" stroke="#F5B800" stroke-width="3.5">${anim?`<animate attributeName="cx" from="${x0+2}" to="${carX}" begin="indefinite" dur="1.25s" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines=".35 .1 .2 1"/>`:''}</circle>
+  <text class="end" x="${x0}" y="${ry+36}">Start</text><text class="end" x="${x1}" y="${ry+36}" text-anchor="end">${esc(destTxt)}</text>`;
+  band.classList.remove('anim');
+  if(anim){void band.getBoundingClientRect();band.classList.add('anim');const a=band.querySelector('animate');if(a)setTimeout(()=>{try{a.beginElement()}catch(e){}},350)}
+}
+function drawIdle(){
+  const km=S.mode==='km',tgt=km?S.km:S.t,w=km?S.winKm:S.win,unit=km?'km':'min';
+  const dest=S.dest?S.dest.label.split(',')[0]:'Ziel';
+  drawBand({total:km?Math.max(300,tgt+w+80):Math.max(180,tgt+w+45),unit,tgt,w,late:false,dest,st:[]});
+  $('bandsum').innerHTML=S.dest?`Ziel <b>${esc(dest)}</b>. Ladestopp nach ${tgt} ${unit}, gesucht wird ±${w} ${unit} drumherum.`:'Gib dein Ziel ein und leg fest, wann du laden willst. Das Band zeigt, wo der Stopp liegt.';
+}
+function refresh(){if(route)render();else drawIdle()}
+band.addEventListener('click',e=>{const g=e.target.closest('.stn');if(g&&route)select(+g.dataset.id,false)});
+let bandW=0;new ResizeObserver(()=>{const w=band.clientWidth;if(w===bandW)return;const first=!bandW;bandW=w;if(bandLast&&(!first||!band.firstChild))drawBand(bandLast)}).observe(band);
+$('edit').addEventListener('click',()=>{$('f').classList.remove('done');$('f').scrollIntoView({behavior:reduce()?'auto':'smooth',block:'start'})});
+
+/* Segmentschalter: gleitende Markierung */
+const segRO=new ResizeObserver(es=>es.forEach(e=>segInd(e.target)));
+function segInd(seg){let ind=seg.querySelector('.ind');if(!ind){ind=document.createElement('span');ind.className='ind';seg.prepend(ind)}
+  const b=seg.querySelector('.chip[aria-pressed=true]');if(!b||!b.offsetWidth){ind.style.width='0';return}
+  ind.style.width=b.offsetWidth+'px';ind.style.transform=`translateX(${b.offsetLeft}px)`}
+document.querySelectorAll('.seg').forEach(seg=>{segInd(seg);new MutationObserver(()=>segInd(seg)).observe(seg,{attributes:true,subtree:true,attributeFilter:['aria-pressed']});segRO.observe(seg)});
+if(document.fonts)document.fonts.ready.then(()=>document.querySelectorAll('.seg').forEach(segInd));
+fill($('t'));
+
 /* ---------- Ablauf ---------- */
 $('f').addEventListener('submit',async e=>{
-  e.preventDefault();const btn=$('go');btn.disabled=true;
+  e.preventDefault();const btn=$('go');btn.disabled=true;btn.innerHTML='<span class="spin"></span>Suche Route';
   try{
     if(!S.dest){const q=$('dest').value.trim();if(!q)throw new Error('Bitte ein Ziel eingeben.');msg('Suche Ziel …');S.dest=await firstHit(q);if(!S.dest)throw new Error('Ziel nicht gefunden.');$('dest').value=S.dest.label;$('destSug').innerHTML=''}
     let from;
@@ -482,12 +687,14 @@ $('f').addEventListener('submit',async e=>{
     save();msg('Berechne Route …');
     const rt=await osrm([from,[S.dest.lat,S.dest.lon]],true);
     route=prepRoute(rt,from,S.dest);route.t0=Date.now();sel=null;route.cands=along(route);route.candsP=PARTNERS?along(route,PARTNERS):null;
-    msg('');render();$('mapwrap').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
+    msg('');bandAnim=true;render();
+    if(matchMedia('(max-width:979px)').matches){$('f').classList.add('done');scrollTo({top:0,behavior:reduce()?'auto':'smooth'})}
   }catch(err){msg(err.message||'Fehler',true)}
-  finally{btn.disabled=false}
+  finally{btn.disabled=false;btn.textContent='Säulen finden'}
 });
 const g=new Date(STATIONS_META.generatedAt);
-$('foot').textContent=`${STATIONS.filter(s=>s[7]).length} EnBW-Säulen und ${STATIONS.filter(s=>!s[7]).length} Säulen von EnBW-Töchtern (SMATRICS, naturenergie, PRE), alle ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Andere Betreiber nur, wenn eingeschaltet (Quelle: Bundesnetzagentur, Ladesäulenregister, CC BY 4.0). Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr; die Navigation selbst läuft mit Verkehr in Google Maps. Karte, Adresssuche und Restaurants © OpenStreetMap-Mitwirkende. Öffnungszeiten laut OpenStreetMap, ohne Gewähr.`;
+$('foot').textContent=`Datenstand EnBW: ${STATIONS.filter(s=>s[7]).length} EnBW-Säulen und ${STATIONS.filter(s=>!s[7]).length} Säulen von EnBW-Töchtern (SMATRICS, naturenergie, PRE) ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Andere Betreiber: Bundesnetzagentur, Ladesäulenregister, CC BY 4.0. Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr, die Navigation in Google Maps rechnet mit Verkehr. Karte, Adresssuche und Restaurants: OpenStreetMap-Mitwirkende. Öffnungszeiten ohne Gewähr.`;
+drawIdle();
 window.__app={S,along,prepRoute,render,get route(){return route},set route(v){route=v}};
 }
 </script>
