@@ -26,7 +26,7 @@ def evse_kw(e):
     best = None
     for c in e.get('connectors') or e.get('plugs') or []:
         if isinstance(c, dict):
-            for k in ('max_electric_power', 'max_power', 'power'):
+            for k in ('max_electric_power_connector', 'max_electric_power', 'max_power', 'power'):
                 if num(c.get(k)): best = max(best or 0, num(c.get(k)))
     return best
 
