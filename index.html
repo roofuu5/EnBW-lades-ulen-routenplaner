@@ -140,6 +140,19 @@ details.more summary::before{content:'▸';margin-right:8px}details.more[open] s
   </div>
   <div class="time" style="margin-top:8px"><span class="big" id="tv">60</span><span id="tu">Minuten Fahrzeit</span></div>
   <input type="range" id="t" min="15" max="300" step="5" value="60" aria-label="Ladestopp nach">
+  <label class="l">Suchbereich davor und danach</label>
+  <div class="row" id="winkm" role="group" aria-label="Suchfenster in Kilometern">
+    <button type="button" class="chip" data-v="10" aria-pressed="false">±10 km</button>
+    <button type="button" class="chip" data-v="15" aria-pressed="false">±15 km</button>
+    <button type="button" class="chip" data-v="30" aria-pressed="true">±30 km</button>
+    <button type="button" class="chip" data-v="60" aria-pressed="false">±60 km</button>
+  </div>
+  <div class="row" id="win" role="group" aria-label="Zeitfenster">
+    <button type="button" class="chip" data-v="5" aria-pressed="false">±5 min</button>
+    <button type="button" class="chip" data-v="10" aria-pressed="false">±10 min</button>
+    <button type="button" class="chip" data-v="20" aria-pressed="true">±20 min</button>
+    <button type="button" class="chip" data-v="40" aria-pressed="false">±40 min</button>
+  </div>
 
   <label class="l">Mindestleistung</label>
   <div class="row" id="kw" role="group" aria-label="Mindestleistung">
@@ -170,23 +183,13 @@ details.more summary::before{content:'▸';margin-right:8px}details.more[open] s
   </div>
 
   <details class="more" id="more"><summary>Weitere Einstellungen</summary>
-  <label class="l">Suchfenster um den Ladestopp</label>
-  <div class="row" id="winkm" role="group" aria-label="Suchfenster in Kilometern">
-    <button type="button" class="chip" data-v="15" aria-pressed="false">±15 km</button>
-    <button type="button" class="chip" data-v="30" aria-pressed="true">±30 km</button>
-    <button type="button" class="chip" data-v="60" aria-pressed="false">±60 km</button>
-  </div>
-  <div class="row" id="win" role="group" aria-label="Zeitfenster">
-    <button type="button" class="chip" data-v="10" aria-pressed="false">±10 min</button>
-    <button type="button" class="chip" data-v="20" aria-pressed="true">±20 min</button>
-    <button type="button" class="chip" data-v="40" aria-pressed="false">±40 min</button>
-  </div>
-  <div class="row" id="cor" role="group" aria-label="Abstand" style="margin-top:8px">
+  <label class="l">Abstand der Säule zur Strecke</label>
+  <div class="row" id="cor" role="group" aria-label="Abstand">
     <button type="button" class="chip" data-v="1" aria-pressed="false">bis 1 km</button>
     <button type="button" class="chip" data-v="3" aria-pressed="true">bis 3 km</button>
     <button type="button" class="chip" data-v="8" aria-pressed="false">bis 8 km</button>
   </div>
-  <p class="hint">Oben: wie weit vor oder nach deinem Wunschpunkt gesucht wird. Unten: wie weit die Säule höchstens neben der Strecke liegen darf.</p>
+  <p class="hint">Wie weit die Säule höchstens neben der Strecke liegen darf.</p>
   </details>
 
   <button class="go" id="go" type="submit">Säulen finden</button>
