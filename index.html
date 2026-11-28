@@ -138,7 +138,7 @@ svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .ftile:active{transform:translateY(4px);box-shadow:0 1px 0 var(--edge)}
 .ftile:focus-visible{outline:3px solid var(--volt);outline-offset:3px}
 .ftile .fi{grid-row:1/3;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;color:#fff;box-shadow:inset 0 -4px 0 rgba(0,0,0,.14)}
-.fi.sky{background:var(--sky)}.fi.volt{background:var(--volt);color:#5A4200}.fi.slate{background:#5B6B7F}.fi.berry{background:#8B5CF6}
+.fi.sky{background:var(--sky)}.fi.volt{background:var(--volt);color:#5A4200}.fi.slate{background:#5B6B7F}
 .ftile .fl{font:800 14px/1.2 var(--font);color:var(--mute);align-self:end}
 .ftile .fv{font:900 18px/1.2 var(--font);color:var(--ink);align-self:start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ftile[aria-pressed=true]{background:var(--skybg);border-color:var(--sky);box-shadow:0 5px 0 var(--sky)}
@@ -150,6 +150,27 @@ svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .ftile.wide .chev{grid-row:1/3;grid-column:3;width:22px;height:22px;color:var(--mute)}
 .ftile.on{background:var(--leafbg);border-color:var(--leaf);box-shadow:0 5px 0 var(--leaf-d)}
 .ftile.on .fv{color:var(--leafink)}
+/* Schalter "Ladesäulen anderer Anbieter": aus = neutral, an = volle Volt-Fläche */
+.ftile.tog{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto;column-gap:8px;align-items:center}
+.ftile.tog .fl{grid-row:1;grid-column:1;align-self:center;font:800 15px/1.22 var(--font);color:var(--ink)}
+.tsw{grid-row:1;grid-column:2;position:relative;width:62px;height:34px;border-radius:17px;background:light-dark(#D2D9E1,#3A4656);box-shadow:inset 0 -3px 0 rgba(0,0,0,.08);transition:background .2s}
+.tsw-k{position:absolute;top:4px;left:4px;width:26px;height:26px;border-radius:50%;background:#fff;color:#9AA6B2;display:grid;place-items:center;box-shadow:0 2px 0 rgba(0,0,0,.18);transition:transform .3s var(--spring),background .2s,color .2s}
+.tsw-k svg{width:15px;height:15px;fill:currentColor}
+.tsw-t{position:absolute;top:0;right:7px;font:900 12px/34px var(--font);color:light-dark(#566275,#C9D1D8)}
+.ftile.tog[aria-checked=true]{background:var(--volt);border-color:var(--volt-d);box-shadow:0 5px 0 #C28E00}
+.ftile.tog[aria-checked=true]:active{box-shadow:0 1px 0 #C28E00}
+.ftile.tog[aria-checked=true] .fl{color:#3D2C00}
+.ftile.tog[aria-checked=true] .tsw{background:var(--slate)}
+.ftile.tog[aria-checked=true] .tsw-k{transform:translateX(28px);background:var(--volt);color:#3D2C00}
+.ftile.tog[aria-checked=true] .tsw-t{right:auto;left:10px;color:#fff}
+/* schmale Handys: Kacheltexte passen sich der Kachelbreite an */
+.ftile{container-type:inline-size}
+@container (max-width:150px){.ftile .fv{font-size:16px}}
+@container (max-width:140px){.ftile .fv{font-size:15px}}
+@container (max-width:150.9px){.ftile.tog .fl{font-size:14px}}
+@container (max-width:145.9px){.ftile.tog .fl{grid-column:1/-1}.tsw{grid-row:2;grid-column:1;justify-self:start;margin-top:8px}}
+.ftile.tog.zap .tsw-k svg{animation:zap .55s var(--spring) .1s}
+@keyframes zap{0%{transform:scale(1)}40%{transform:scale(1.35) rotate(-12deg)}100%{transform:scale(1)}}
 .hint{font:700 14px/1.45 var(--font);color:var(--mute);margin:10px 4px 0}
 #partnerHint{margin:4px 4px 6px}
 
@@ -420,7 +441,7 @@ details.all[open] summary::after{transform:rotate(-135deg)}
   <button type="button" class="ftile" id="cWin" data-panel="win" data-title="Suchbereich" aria-haspopup="dialog" aria-expanded="false"><span class="fi sky"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg></span><span class="fl">Suchbereich</span><b class="fv"></b></button>
   <button type="button" class="ftile" id="cKw" data-panel="kw" data-title="Ladeleistung" aria-haspopup="dialog" aria-expanded="false"><span class="fi volt"><svg class="i" viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg></span><span class="fl">Ladeleistung</span><b class="fv"></b></button>
   <button type="button" class="ftile" id="cCor" data-panel="cor" data-title="Abstand zur Strecke" aria-haspopup="dialog" aria-expanded="false"><span class="fi slate"><svg class="i" viewBox="0 0 24 24"><path d="M8 21l3-18M16 21l-3-18"/></svg></span><span class="fl">Abstand zur Strecke</span><b class="fv"></b></button>
-  <button type="button" class="ftile" id="partner" aria-pressed="false"><span class="fi berry"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="fl">Andere Betreiber</span><b class="fv"></b></button>
+  <button type="button" class="ftile tog" id="partner" role="switch" aria-checked="false"><span class="fl">Ladesäulen anderer Anbieter</span><span class="tsw" aria-hidden="true"><span class="tsw-t">Aus</span><span class="tsw-k"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span></span></button>
   <button type="button" class="ftile wide" id="cFood" data-panel="food" data-title="Essen beim Laden" aria-haspopup="dialog" aria-expanded="false"><span class="fics"></span><span class="fl">Essen beim Laden</span><b class="fv"></b><svg class="i chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
 </section>
 <p class="hint" id="partnerHint" hidden></p>
@@ -522,12 +543,12 @@ let PARTNERS=null,partnerMeta=null,partnerErr='';
 async function loadPartners(){
   if(PARTNERS||partnerErr)return;
   try{const r=await fetch('partners.json',{cache:'no-cache'});if(!r.ok)throw new Error(r.status);const j=await r.json();PARTNERS=j.stations;partnerMeta=j.meta}
-  catch(e){partnerErr='Die Liste der anderen Betreiber ist noch nicht verfügbar.'}
+  catch(e){partnerErr='Die Liste der anderen Anbieter ist noch nicht verfügbar.'}
   showPartner();if(route&&PARTNERS&&!route.candsP){route.candsP=along(route,PARTNERS);render()}
 }
-function showPartner(){$('partner').setAttribute('aria-pressed',String(S.partner));const h=$('partnerHint');
-  h.hidden=!S.partner;h.textContent=partnerErr||(PARTNERS?`${PARTNERS.length.toLocaleString('de-DE')} Ladeorte anderer Betreiber ab 50 kW laut Bundesnetzagentur, Stand ${new Date(partnerMeta.generatedAt).toLocaleDateString('de-DE')}. Ob eine Säule mit der EnBW-App läuft und was sie kostet, zeigt die EnBW-App.`:'Lade Liste …')}
-$('partner').addEventListener('click',()=>{S.partner=!S.partner;save();showPartner();if(S.partner)loadPartners();refresh()});
+function showPartner(){const pb=$('partner');pb.setAttribute('aria-checked',String(S.partner));pb.querySelector('.tsw-t').textContent=S.partner?'An':'Aus';const h=$('partnerHint');
+  h.hidden=!S.partner;h.textContent=partnerErr||(PARTNERS?`${PARTNERS.length.toLocaleString('de-DE')} Ladeorte anderer Anbieter ab 50 kW laut Bundesnetzagentur, Stand ${new Date(partnerMeta.generatedAt).toLocaleDateString('de-DE')}. Ob eine Säule mit der EnBW-App läuft und was sie kostet, zeigt die EnBW-App.`:'Lade Liste …')}
+$('partner').addEventListener('click',()=>{S.partner=!S.partner;save();const pb=$('partner');pb.classList.remove('zap');if(S.partner){void pb.offsetWidth;pb.classList.add('zap')}showPartner();if(S.partner)loadPartners();refresh()});
 showPartner();if(S.partner)loadPartners();
 const walkM=()=>Math.round(S.walk*80/1.3); /* Luftlinie: 80 m/min Gehtempo, Umwegfaktor 1,3 */
 const fill=i=>i.style.setProperty('--p',((i.value-i.min)/(i.max-i.min)*100)+'%');
@@ -713,7 +734,7 @@ function stName(s){const loc=(s[5]||'').trim(),addr=s[4]||'';if(!loc)return addr
 function card(c,best){
   const s=c.s,dt=c.dt,on=s[0]===sel,km=S.mode==='km',m=Math.round(c.eta/60);
   const num=km?`<b>${Math.round(c.km)}</b><span>km</span>`:m<60?`<b>${m}</b><span>min</span>`:`<b class="hm">${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}</b><span>Std.</span>`;
-  const badges=(best?'<span class="badge best">Beste Wahl</span>':'')+(s[7]===2?'<span class="badge pt">Anderer Betreiber, Preis in der EnBW-App</span>':'');
+  const badges=(best?'<span class="badge best">Beste Wahl</span>':'')+(s[7]===2?'<span class="badge pt">Anderer Anbieter, Preis in der EnBW-App</span>':'');
   const eatL=c.eats&&c.eats.length?`<ul class="eat">${c.eats.slice(0,on?99:3).map(p=>`<li><a href="${esc(gWalk(p,c))}" target="_blank" rel="noopener" aria-label="${esc(p.name)}: Fußweg von der Säule in Google Maps"><span class="fico">${foodSVG(kindOf(p))}</span><strong>${esc(p.name)}</strong><em>${walk(p)} min</em><small>${eatInfo(p)}</small></a></li>`).join('')}${!on&&c.eats.length>3?`<li class="more">${c.eats.length-3} weitere, Säule antippen</li>`:''}</ul>`:'';
   return `<article class="st${best?' best':''}${on?' sel':''}" data-id="${s[0]}"><div class="num">${num}</div><div class="rail"></div><div class="body">
   <div class="badges">${badges}</div><h3>${esc(stName(s))}</h3><div class="ad">${esc(s[4].replace(/, DE$/,''))}${s[7]===1?'':', '+esc(s[6])}</div>
@@ -942,7 +963,7 @@ let bandW=0;new ResizeObserver(()=>{const w=band.clientWidth;if(w===bandW)return
 function chipLabels(){
   const km=S.mode==='km',fv=(id,t)=>{$(id).querySelector('.fv').textContent=t};
   fv('cWin',km?`±${S.winKm} km`:`±${S.win} min`);fv('cKw',`ab ${S.kw} kW`);fv('cCor',`bis ${S.cor} km`);
-  fv('partner',S.partner?'an':'aus');$('partner').setAttribute('aria-pressed',String(!!S.partner));
+  {const p=$('partner');p.setAttribute('aria-checked',String(!!S.partner));p.querySelector('.tsw-t').textContent=S.partner?'An':'Aus'}
   const any=!S.food.length||S.food.includes('any');
   fv('cFood',S.eat?(any?'Egal was':S.food.map(x=>FOODL[x]).join(', ')):'aus');$('cFood').classList.toggle('on',!!S.eat);
   $('cFood').querySelectorAll('.fics .food').forEach(f=>{const k=f.dataset.k;f.classList.toggle('dim',!S.eat||(!any&&!S.food.includes(k)))});
@@ -1012,7 +1033,7 @@ $('f').addEventListener('submit',async e=>{
   finally{btn.disabled=false;btn.classList.remove('busy')}
 });
 const g=new Date(STATIONS_META.generatedAt);
-$('foot').textContent=`Säulen: ${STATIONS.filter(s=>s[7]).length} von EnBW und ${STATIONS.filter(s=>!s[7]).length} von EnBW-Konzerngesellschaften (SMATRICS, naturenergie, PRE) ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Andere Betreiber: Bundesnetzagentur, Ladesäulenregister, CC BY 4.0. Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr, die Navigation in Google Maps rechnet mit Verkehr. Karte, Adresssuche und Restaurants: OpenStreetMap-Mitwirkende. Öffnungszeiten ohne Gewähr. Saftpause ist ein privates Werkzeug ohne Verbindung zu EnBW.`;
+$('foot').textContent=`Säulen: ${STATIONS.filter(s=>s[7]).length} von EnBW und ${STATIONS.filter(s=>!s[7]).length} von EnBW-Konzerngesellschaften (SMATRICS, naturenergie, PRE) ab 50 kW, Stand ${g.toLocaleDateString('de-DE')}. Andere Anbieter: Bundesnetzagentur, Ladesäulenregister, CC BY 4.0. Fahrzeiten aus OpenStreetMap-Routing ohne Live-Verkehr, die Navigation in Google Maps rechnet mit Verkehr. Karte, Adresssuche und Restaurants: OpenStreetMap-Mitwirkende. Öffnungszeiten ohne Gewähr. Saftpause ist ein privates Werkzeug ohne Verbindung zu EnBW.`;
 $('brandMascot').innerHTML=MASCOT('');
 $('cFood').querySelector('.fics').innerHTML=['asia','burger','italia'].map(k=>foodSVG(k).replace('<svg ','<svg data-k="'+k+'" ')).join('');
 document.querySelectorAll('#food .chip').forEach(b=>b.insertAdjacentHTML('afterbegin',foodSVG(b.dataset.v)));
